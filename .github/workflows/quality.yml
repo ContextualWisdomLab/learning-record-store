@@ -26,6 +26,7 @@ jobs:
       - name: Validate bootstrap contract
         shell: python3 {0}
         run: |
+          import json
           from pathlib import Path
 
           required = [
@@ -43,34 +44,37 @@ jobs:
           if missing:
               raise SystemExit(f"missing required bootstrap files: {missing}")
 
-          architecture = Path("docs/ARCHITECTURE.md").read_text(encoding="utf-8")
-          required_terms = ("xAPI 2.0", "1.0.3", "immutable")
-          absent = [term for term in required_terms if term not in architecture]
-          if absent:
-              raise SystemExit(f"LRS architecture is missing compatibility/authority terms: {absent}")
-
-          agents = Path("AGENTS.md").read_text(encoding="utf-8")
-          evidence_terms = (
-              "target_xapi_version",
-              "provenance_reference",
-              "Statement Comparison Requirements",
-          )
-          absent = [term for term in evidence_terms if term not in agents]
-          if absent:
-              raise SystemExit(f"LRS agent rules are missing compatibility evidence terms: {absent}")
-
           data_model = Path("docs/DATA_MODEL.md").read_text(encoding="utf-8")
-          model_terms = (
-              "`compatibility_artifact`",
-              "SHA-256",
-              "(tenant_id, statement_id)",
-              "`request_statement_index`",
-              "`statement_comparison_version`",
-              "Statement Comparison Requirements",
-          )
-          absent = [term for term in model_terms if term not in data_model]
-          if absent:
-              raise SystemExit(f"LRS data model is missing evidence-integrity terms: {absent}")
+          start_marker = "<!-- lrs-bootstrap-contract:start -->"
+          end_marker = "<!-- lrs-bootstrap-contract:end -->"
+          if data_model.count(start_marker) != 1 or data_model.count(end_marker) != 1:
+              raise SystemExit("DATA_MODEL.md must contain exactly one machine-readable LRS bootstrap contract")
+
+          block = data_model.split(start_marker, 1)[1].split(end_marker, 1)[0].strip()
+          if not block.startswith("```json\n") or not block.endswith("\n```"):
+              raise SystemExit("LRS bootstrap contract must be a fenced JSON object")
+          contract = json.loads(block[len("```json\n"):-len("\n```")])
+
+          expected_contract = {
+              "batch_duplicate_statement_id": "reject_before_persistence",
+              "canonical_xapi_surface": "2.0",
+              "comparison_hash_algorithm": "SHA-256",
+              "compatibility_artifact_authority": "provenance_only",
+              "compatibility_surfaces": ["1.0.3", "cmi5 Quartz"],
+              "database_normal_form": "3NF",
+              "raw_request_bytes_are_statement_comparator": False,
+              "request_evidence_entity": "ingestion_receipt",
+              "request_occurrence_entity": "statement_ingestion_item",
+              "request_statement_index": "zero_based",
+              "statement_comparison": "received_surface_statement_comparison_requirements",
+              "statement_identity_key": ["tenant_id", "statement_id"],
+              "tenant_reference_policy": "composite_tenant_foreign_keys_fail_closed",
+          }
+          if contract != expected_contract:
+              raise SystemExit(
+                  "machine-readable LRS bootstrap contract drifted from the reviewed baseline:\n"
+                  + json.dumps(contract, indent=2, sort_keys=True)
+              )
 
           forbidden = ("TODO: replace", "TBD: replace", "PLACEHOLDER_REPLACE")
           for path in required:

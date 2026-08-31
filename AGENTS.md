@@ -9,4 +9,5 @@
 - Conformance evidence must independently exercise the xAPI 2.0 canonical path and the xAPI 1.0.3/cmi5 Quartz compatibility path.
 - Each conformance path must cover input acceptance, compatibility transformation where applicable, provenance, conflicting replay, tenant isolation, statements, voiding, attachments, State documents, Agent Profile documents, and Activity Profile documents.
 - Statement replay equality must follow the Statement Comparison Requirements of the received xAPI surface; immutable raw request bytes are audit evidence, not the equality comparator for a parsed Statement.
+- Preserve every request occurrence through a tenant-scoped receipt-to-Statement association. Idempotent retries may resolve to an existing canonical `statement_record` but must never overwrite or repoint an earlier receipt association.
 - Compatibility evidence must prove that the original payload, source protocol version (`source_xapi_version`), target protocol version (`target_xapi_version`), converter version, transformed output hash, validation result, and `provenance_reference` remain traceable and reproducible.
