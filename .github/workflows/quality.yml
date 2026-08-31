@@ -21,6 +21,7 @@ jobs:
       - name: Checkout exact revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Validate bootstrap contract
         shell: python3 {0}
@@ -33,7 +34,9 @@ jobs:
               Path("CLAUDE.md"),
               Path("CHANGELOG.md"),
               Path("docs/ARCHITECTURE.md"),
+              Path("docs/DATA_MODEL.md"),
               Path("docs/adr/0001-lrs-authority-boundary.md"),
+              Path("docs/doctoring/REFERENCES.md"),
               Path("docs/doctoring/STANDARD_TRACEABILITY.md"),
           ]
           missing = [str(path) for path in required if not path.is_file()]
@@ -45,6 +48,18 @@ jobs:
           absent = [term for term in required_terms if term not in architecture]
           if absent:
               raise SystemExit(f"LRS architecture is missing compatibility/authority terms: {absent}")
+
+          agents = Path("AGENTS.md").read_text(encoding="utf-8")
+          evidence_terms = ("target_xapi_version", "provenance_reference")
+          absent = [term for term in evidence_terms if term not in agents]
+          if absent:
+              raise SystemExit(f"LRS agent rules are missing compatibility evidence terms: {absent}")
+
+          data_model = Path("docs/DATA_MODEL.md").read_text(encoding="utf-8")
+          model_terms = ("`compatibility_artifact`", "SHA-256", "(tenant_id, statement_id)")
+          absent = [term for term in model_terms if term not in data_model]
+          if absent:
+              raise SystemExit(f"LRS data model is missing evidence-integrity terms: {absent}")
 
           forbidden = ("TODO: replace", "TBD: replace", "PLACEHOLDER_REPLACE")
           for path in required:
