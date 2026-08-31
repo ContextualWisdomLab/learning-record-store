@@ -13,3 +13,4 @@
 ### Changed
 
 - Hardened exact-head bootstrap validation, statement identity, attachment digests, and compatibility-artifact provenance so conflicting evidence fails closed and transformed outputs remain auditable without becoming canonical learning evidence.
+- Replaced raw request-body replay equality with version-aware xAPI Statement comparison while retaining immutable request receipts and per-Statement provenance for single and batch ingestion.

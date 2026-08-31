@@ -50,13 +50,24 @@ jobs:
               raise SystemExit(f"LRS architecture is missing compatibility/authority terms: {absent}")
 
           agents = Path("AGENTS.md").read_text(encoding="utf-8")
-          evidence_terms = ("target_xapi_version", "provenance_reference")
+          evidence_terms = (
+              "target_xapi_version",
+              "provenance_reference",
+              "Statement Comparison Requirements",
+          )
           absent = [term for term in evidence_terms if term not in agents]
           if absent:
               raise SystemExit(f"LRS agent rules are missing compatibility evidence terms: {absent}")
 
           data_model = Path("docs/DATA_MODEL.md").read_text(encoding="utf-8")
-          model_terms = ("`compatibility_artifact`", "SHA-256", "(tenant_id, statement_id)")
+          model_terms = (
+              "`compatibility_artifact`",
+              "SHA-256",
+              "(tenant_id, statement_id)",
+              "`request_statement_index`",
+              "`statement_comparison_version`",
+              "Statement Comparison Requirements",
+          )
           absent = [term for term in model_terms if term not in data_model]
           if absent:
               raise SystemExit(f"LRS data model is missing evidence-integrity terms: {absent}")
