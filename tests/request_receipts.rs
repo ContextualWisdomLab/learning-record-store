@@ -85,7 +85,7 @@ fn receipt_context_mismatch_fails_before_canonical_state_changes() {
         )
         .expect_err("cross-tenant receipt use rejected");
     assert!(matches!(
-        tenant_error,
+        &tenant_error,
         IngestionError::ReceiptContextMismatch { .. }
     ));
     assert_eq!(
@@ -105,7 +105,7 @@ fn receipt_context_mismatch_fails_before_canonical_state_changes() {
         )
         .expect_err("cross-version receipt use rejected");
     assert!(matches!(
-        version_error,
+        &version_error,
         IngestionError::ReceiptContextMismatch { .. }
     ));
     assert_eq!(
@@ -139,7 +139,7 @@ fn one_request_index_cannot_be_reused() {
         )
         .expect_err("receipt index is immutable");
     assert!(matches!(
-        error,
+        &error,
         IngestionError::OccurrenceAlreadyRecorded { .. }
     ));
     assert_eq!(
