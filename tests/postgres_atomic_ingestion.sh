@@ -214,4 +214,64 @@ SQL
   exit 1
 }
 
+run_concurrent_conflict() {
+  local receipt_hash="$1"
+  local content_hash="$2"
+  local variant="$3"
+  local output_file="$4"
+  PGUSER=lrs_app PGPASSWORD=lrs-app-test psql -v ON_ERROR_STOP=1 -At >"$output_file" <<SQL
+SET app.tenant_key = 'tenant-alpha';
+SELECT persistence_outcome
+FROM persist_statement_occurrence(
+    'tenant-alpha',
+    '2.0',
+    convert_to('{"id":"statement-race-conflict","variant":"${variant}"}', 'UTF8'),
+    decode(repeat('${receipt_hash}', 32), 'hex'),
+    0,
+    'statement-race-conflict',
+    'xapi-2.0-statement-comparison/v1',
+    decode(repeat('${content_hash}', 32), 'hex'),
+    convert_to('{"id":"statement-race-conflict","variant":"${variant}"}', 'UTF8'),
+    convert_to('{"id":"statement-race-conflict","variant":"${variant}"}', 'UTF8')
+);
+SQL
+}
+
+run_concurrent_conflict 94 a1 first "$work_dir/conflict-first.out" &
+conflict_first_pid=$!
+run_concurrent_conflict 95 b1 second "$work_dir/conflict-second.out" &
+conflict_second_pid=$!
+wait "$conflict_first_pid"
+wait "$conflict_second_pid"
+
+conflicting_race_outcomes="$(cat "$work_dir/conflict-first.out" "$work_dir/conflict-second.out" | grep -E '^(accepted|conflict)$' | sort | tr '\n' ' ')"
+[[ "$conflicting_race_outcomes" == "accepted conflict " ]] || {
+  echo "expected one accepted and one conflict outcome for competing content, got: $conflicting_race_outcomes" >&2
+  exit 1
+}
+
+conflicting_race_statement_count="$({ app_psql -At <<'SQL'
+SET app.tenant_key = 'tenant-alpha';
+SELECT count(*)
+FROM statement_record
+WHERE tenant_key = 'tenant-alpha' AND statement_key = 'statement-race-conflict';
+SQL
+} | tail -n 1)"
+[[ "$conflicting_race_statement_count" == "1" ]] || {
+  echo "competing content created duplicate canonical statements" >&2
+  exit 1
+}
+
+conflicting_race_audit="$({ app_psql -At <<'SQL'
+SET app.tenant_key = 'tenant-alpha';
+SELECT string_agg(comparison_outcome, ',' ORDER BY comparison_outcome)
+FROM statement_ingestion_item
+WHERE tenant_key = 'tenant-alpha' AND submitted_statement_key = 'statement-race-conflict';
+SQL
+} | tail -n 1)"
+[[ "$conflicting_race_audit" == "accepted,conflict" ]] || {
+  echo "competing content did not preserve accepted/conflict audit evidence, got: $conflicting_race_audit" >&2
+  exit 1
+}
+
 echo "postgres atomic ingestion transaction tests passed"
