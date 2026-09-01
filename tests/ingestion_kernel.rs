@@ -34,10 +34,32 @@ fn first_ingest_preserves_exact_source_evidence() {
         .expect("first ingest accepted");
 
     assert_eq!(outcome.status(), IngestionStatus::Accepted);
+    assert_eq!(outcome.receipt_number(), 1);
     assert_eq!(outcome.statement().raw_statement_bytes(), raw);
+    assert_eq!(outcome.statement().tenant_key().as_str(), "tenant-alpha");
+    assert_eq!(outcome.statement().statement_key(), "statement-001");
+    assert_eq!(outcome.statement().received_xapi_version(), XapiVersion::V2_0);
+    assert_eq!(
+        outcome.statement().statement_comparison_version(),
+        "xapi-2.0-statement-comparison/v1"
+    );
+    assert_eq!(outcome.statement().content_hash().len(), 32);
+
     assert_eq!(kernel.receipts().len(), 1);
-    assert_eq!(kernel.receipts()[0].raw_request_bytes(), raw);
+    let receipt = &kernel.receipts()[0];
+    assert_eq!(receipt.receipt_number(), 1);
+    assert_eq!(receipt.tenant_key().as_str(), "tenant-alpha");
+    assert_eq!(receipt.raw_request_bytes(), raw);
+    assert_eq!(receipt.request_content_hash().len(), 32);
+    assert_eq!(receipt.received_xapi_version(), XapiVersion::V2_0);
+
     assert_eq!(kernel.occurrences().len(), 1);
+    let occurrence = &kernel.occurrences()[0];
+    assert_eq!(occurrence.receipt_number(), 1);
+    assert_eq!(occurrence.request_statement_index(), 0);
+    assert_eq!(occurrence.status(), IngestionStatus::Accepted);
+    assert_eq!(occurrence.tenant_key().as_str(), "tenant-alpha");
+    assert_eq!(occurrence.statement_key(), "statement-001");
 }
 
 #[test]
@@ -68,6 +90,7 @@ fn equivalent_replay_reuses_canonical_statement_and_keeps_new_receipt() {
     assert_eq!(kernel.receipts().len(), 2);
     assert_eq!(kernel.receipts()[1].raw_request_bytes(), replay_raw.as_bytes());
     assert_eq!(kernel.occurrences().len(), 2);
+    assert_eq!(kernel.occurrences()[1].status(), IngestionStatus::Replayed);
 }
 
 #[test]
@@ -93,10 +116,12 @@ fn conflicting_replay_fails_closed_without_overwriting_canonical_evidence() {
     let error = kernel.ingest(conflict).expect_err("conflict must fail closed");
 
     assert!(matches!(error, IngestionError::StatementConflict { .. }));
+    assert!(error.to_string().contains("statement conflict"));
     assert_eq!(kernel.statement_count(), 1);
     assert_eq!(kernel.receipts().len(), 2);
     assert_eq!(kernel.receipts()[1].raw_request_bytes(), conflict_raw.as_bytes());
     assert_eq!(kernel.occurrences().len(), 2);
+    assert_eq!(kernel.occurrences()[1].status(), IngestionStatus::Conflict);
     assert_eq!(
         kernel
             .statement(&TenantKey::new("tenant-alpha").unwrap(), "statement-001")
@@ -109,7 +134,7 @@ fn conflicting_replay_fails_closed_without_overwriting_canonical_evidence() {
 #[test]
 fn received_protocol_version_mismatch_is_a_conflict_not_an_upgrade() {
     let mut kernel = StatementKernel::default();
-    kernel
+    let accepted = kernel
         .ingest(candidate(
             "tenant-alpha",
             "statement-001",
@@ -118,6 +143,13 @@ fn received_protocol_version_mismatch_is_a_conflict_not_an_upgrade() {
             b"same-comparison",
         ))
         .expect("first ingest accepted");
+
+    assert_eq!(XapiVersion::V1_0_3.as_str(), "1.0.3");
+    assert_eq!(XapiVersion::V2_0.as_str(), "2.0");
+    assert_eq!(
+        accepted.statement().statement_comparison_version(),
+        "xapi-1.0.3-statement-comparison/v1"
+    );
 
     let error = kernel
         .ingest(candidate(
@@ -191,25 +223,70 @@ fn voiding_relation_never_deletes_original_statement() {
         .expect("valid voiding relation");
 
     assert!(kernel.statement(&tenant, "statement-original").is_some());
-    assert_eq!(kernel.voiding_relations().len(), 1);
+    let relations = kernel.voiding_relations();
+    assert_eq!(relations.len(), 1);
+    assert_eq!(relations[0].tenant_key(), &tenant);
+    assert_eq!(relations[0].voiding_statement_key(), "statement-voiding");
+    assert_eq!(relations[0].voided_statement_key(), "statement-original");
 }
 
 #[test]
-fn invalid_identity_and_missing_void_targets_fail_closed() {
-    assert!(TenantKey::new("   ").is_err());
-    assert!(StatementCandidate::new(
-        TenantKey::new("tenant-alpha").unwrap(),
+fn invalid_identity_and_evidence_fail_closed() {
+    let identity_error = TenantKey::new("   ").expect_err("blank tenant rejected");
+    assert_eq!(identity_error.to_string(), "invalid identity: tenant_key");
+
+    let tenant = TenantKey::new("tenant-alpha").unwrap();
+    let statement_error = StatementCandidate::new(
+        tenant.clone(),
         " ",
         XapiVersion::V2_0,
         vec![b'{', b'}'],
         b"comparison".to_vec(),
     )
-    .is_err());
+    .expect_err("blank statement rejected");
+    assert_eq!(statement_error.to_string(), "invalid identity: statement_key");
 
+    let raw_error = StatementCandidate::new(
+        tenant.clone(),
+        "statement-001",
+        XapiVersion::V2_0,
+        Vec::new(),
+        b"comparison".to_vec(),
+    )
+    .expect_err("empty raw evidence rejected");
+    assert_eq!(raw_error.to_string(), "invalid evidence: raw_statement_bytes");
+
+    let comparison_error = StatementCandidate::new(
+        tenant,
+        "statement-001",
+        XapiVersion::V2_0,
+        b"{}".to_vec(),
+        Vec::new(),
+    )
+    .expect_err("empty comparator rejected");
+    assert_eq!(comparison_error.to_string(), "invalid evidence: comparison_bytes");
+}
+
+#[test]
+fn missing_voiding_source_or_target_fails_closed() {
     let mut kernel = StatementKernel::default();
     let tenant = TenantKey::new("tenant-alpha").unwrap();
-    let error = kernel
+    let source_error = kernel
         .record_voiding(&tenant, "missing-voiding", "missing-target")
-        .expect_err("missing statements cannot be linked");
-    assert!(matches!(error, IngestionError::StatementNotFound { .. }));
+        .expect_err("missing source cannot be linked");
+    assert_eq!(source_error.to_string(), "statement not found: missing-voiding");
+
+    kernel
+        .ingest(candidate(
+            "tenant-alpha",
+            "statement-voiding",
+            XapiVersion::V2_0,
+            r#"{"id":"statement-voiding"}"#,
+            b"voiding",
+        ))
+        .unwrap();
+    let target_error = kernel
+        .record_voiding(&tenant, "statement-voiding", "missing-target")
+        .expect_err("missing target cannot be linked");
+    assert_eq!(target_error.to_string(), "statement not found: missing-target");
 }
