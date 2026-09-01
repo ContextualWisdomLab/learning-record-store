@@ -327,6 +327,22 @@ pub enum IngestionError {
         /// Missing Statement identifier.
         statement_key: String,
     },
+    /// A voiding Statement attempted an impossible self-relation.
+    InvalidVoidingRelation {
+        /// Statement that attempted to act as the voiding source.
+        voiding_statement_key: String,
+        /// Target Statement, equal to the source for this error.
+        voided_statement_key: String,
+    },
+    /// An immutable voiding Statement attempted to acquire a second target.
+    VoidingTargetConflict {
+        /// Statement that already owns a target relation.
+        voiding_statement_key: String,
+        /// Existing immutable target.
+        existing_voided_statement_key: String,
+        /// Conflicting target requested by the caller.
+        attempted_voided_statement_key: String,
+    },
 }
 
 impl Display for IngestionError {
@@ -344,6 +360,21 @@ impl Display for IngestionError {
             Self::StatementNotFound { statement_key } => {
                 write!(formatter, "statement not found: {statement_key}")
             }
+            Self::InvalidVoidingRelation {
+                voiding_statement_key,
+                voided_statement_key,
+            } => write!(
+                formatter,
+                "invalid voiding relation: {voiding_statement_key} cannot void {voided_statement_key}"
+            ),
+            Self::VoidingTargetConflict {
+                voiding_statement_key,
+                existing_voided_statement_key,
+                attempted_voided_statement_key,
+            } => write!(
+                formatter,
+                "voiding target conflict for {voiding_statement_key}: existing target {existing_voided_statement_key}, attempted target {attempted_voided_statement_key}"
+            ),
         }
     }
 }
@@ -474,7 +505,11 @@ impl StatementKernel {
         &self.occurrences
     }
 
-    /// Records a tenant-local voiding relation without deleting either Statement.
+    /// Records a tenant-local one-target voiding relation without deleting either Statement.
+    ///
+    /// Re-registering the same relation is idempotent. A self-relation or a different target for
+    /// an already-recorded voiding Statement fails closed so the domain reference matches the
+    /// persistence uniqueness contract.
     pub fn record_voiding(
         &mut self,
         tenant_key: &TenantKey,
@@ -487,6 +522,25 @@ impl StatementKernel {
                     statement_key: statement_key.to_owned(),
                 });
             }
+        }
+        if voiding_statement_key == voided_statement_key {
+            return Err(IngestionError::InvalidVoidingRelation {
+                voiding_statement_key: voiding_statement_key.to_owned(),
+                voided_statement_key: voided_statement_key.to_owned(),
+            });
+        }
+        if let Some(existing) = self.voiding_relations.iter().find(|relation| {
+            relation.tenant_key == *tenant_key
+                && relation.voiding_statement_key == voiding_statement_key
+        }) {
+            if existing.voided_statement_key == voided_statement_key {
+                return Ok(());
+            }
+            return Err(IngestionError::VoidingTargetConflict {
+                voiding_statement_key: voiding_statement_key.to_owned(),
+                existing_voided_statement_key: existing.voided_statement_key.clone(),
+                attempted_voided_statement_key: voided_statement_key.to_owned(),
+            });
         }
         self.voiding_relations.insert(VoidingRelation {
             tenant_key: tenant_key.clone(),
