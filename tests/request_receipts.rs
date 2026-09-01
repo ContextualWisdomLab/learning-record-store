@@ -7,12 +7,26 @@ fn candidate(
     statement_key: &str,
     version: XapiVersion,
 ) -> StatementCandidate {
+    candidate_with_comparison(
+        tenant,
+        statement_key,
+        version,
+        format!("comparison:{statement_key}"),
+    )
+}
+
+fn candidate_with_comparison(
+    tenant: &TenantKey,
+    statement_key: &str,
+    version: XapiVersion,
+    comparison: impl Into<String>,
+) -> StatementCandidate {
     StatementCandidate::new(
         tenant.clone(),
         statement_key,
         version,
         format!(r#"{{"id":"{statement_key}"}}"#).into_bytes(),
-        format!("comparison:{statement_key}").into_bytes(),
+        comparison.into().into_bytes(),
     )
     .expect("valid statement candidate")
 }
@@ -22,36 +36,105 @@ fn one_request_receipt_can_own_multiple_indexed_statement_occurrences() {
     let mut kernel = StatementKernel::default();
     let tenant = TenantKey::new("tenant-alpha").expect("tenant key");
     let raw_request = br#"[{"id":"statement-a"},{"id":"statement-b"}]"#.to_vec();
-    let receipt_number = kernel
-        .begin_request(tenant.clone(), XapiVersion::V2_0, raw_request.clone())
-        .expect("request receipt accepted");
-
-    let first = kernel
-        .ingest_at_receipt(
-            receipt_number,
-            0,
-            candidate(&tenant, "statement-a", XapiVersion::V2_0),
+    let outcomes = kernel
+        .ingest_batch(
+            tenant.clone(),
+            XapiVersion::V2_0,
+            raw_request.clone(),
+            vec![
+                candidate(&tenant, "statement-a", XapiVersion::V2_0),
+                candidate(&tenant, "statement-b", XapiVersion::V2_0),
+            ],
         )
-        .expect("first batch item accepted");
-    let second = kernel
-        .ingest_at_receipt(
-            receipt_number,
-            1,
-            candidate(&tenant, "statement-b", XapiVersion::V2_0),
-        )
-        .expect("second batch item accepted");
+        .expect("validated batch accepted atomically");
 
-    assert_eq!(first.status(), IngestionStatus::Accepted);
-    assert_eq!(first.receipt_number(), receipt_number);
-    assert_eq!(second.status(), IngestionStatus::Accepted);
-    assert_eq!(second.receipt_number(), receipt_number);
+    assert_eq!(outcomes.len(), 2);
+    assert_eq!(outcomes[0].status(), IngestionStatus::Accepted);
+    assert_eq!(outcomes[1].status(), IngestionStatus::Accepted);
+    assert_eq!(outcomes[0].receipt_number(), outcomes[1].receipt_number());
     assert_eq!(kernel.receipts().len(), 1);
     assert_eq!(kernel.receipts()[0].raw_request_bytes(), raw_request);
     assert_eq!(kernel.occurrences().len(), 2);
-    assert_eq!(kernel.occurrences()[0].receipt_number(), receipt_number);
     assert_eq!(kernel.occurrences()[0].request_statement_index(), 0);
-    assert_eq!(kernel.occurrences()[1].receipt_number(), receipt_number);
     assert_eq!(kernel.occurrences()[1].request_statement_index(), 1);
+}
+
+#[test]
+fn batch_conflict_retains_receipt_without_partial_canonical_acceptance() {
+    let mut kernel = StatementKernel::default();
+    let tenant = TenantKey::new("tenant-alpha").expect("tenant key");
+    kernel
+        .ingest(candidate_with_comparison(
+            &tenant,
+            "statement-existing",
+            XapiVersion::V2_0,
+            "comparison:original",
+        ))
+        .expect("seed statement accepted");
+    let statement_count_before_batch = kernel.statement_count();
+    let occurrence_count_before_batch = kernel.occurrences().len();
+
+    let error = kernel
+        .ingest_batch(
+            tenant.clone(),
+            XapiVersion::V2_0,
+            br#"[{"id":"statement-new"},{"id":"statement-existing"}]"#.to_vec(),
+            vec![
+                candidate(&tenant, "statement-new", XapiVersion::V2_0),
+                candidate_with_comparison(
+                    &tenant,
+                    "statement-existing",
+                    XapiVersion::V2_0,
+                    "comparison:conflicting",
+                ),
+            ],
+        )
+        .expect_err("a later conflict rejects canonical writes for the whole batch");
+
+    let receipt_number = match error {
+        IngestionError::StatementConflict {
+            receipt_number,
+            statement_key,
+        } => {
+            assert_eq!(statement_key, "statement-existing");
+            receipt_number
+        }
+        other => panic!("unexpected error: {other}"),
+    };
+    assert_eq!(kernel.statement_count(), statement_count_before_batch);
+    assert_eq!(kernel.receipts().len(), 2);
+    assert_eq!(kernel.receipts()[1].receipt_number(), receipt_number);
+    assert_eq!(kernel.occurrences().len(), occurrence_count_before_batch + 1);
+    let rejected_occurrence = kernel.occurrences().last().expect("conflict occurrence");
+    assert_eq!(rejected_occurrence.receipt_number(), receipt_number);
+    assert_eq!(rejected_occurrence.request_statement_index(), 1);
+    assert_eq!(rejected_occurrence.status(), IngestionStatus::Conflict);
+}
+
+#[test]
+fn duplicate_statement_ids_reject_batch_before_canonical_changes() {
+    let mut kernel = StatementKernel::default();
+    let tenant = TenantKey::new("tenant-alpha").expect("tenant key");
+
+    let error = kernel
+        .ingest_batch(
+            tenant.clone(),
+            XapiVersion::V2_0,
+            br#"[{"id":"statement-a"},{"id":"statement-a"}]"#.to_vec(),
+            vec![
+                candidate(&tenant, "statement-a", XapiVersion::V2_0),
+                candidate(&tenant, "statement-a", XapiVersion::V2_0),
+            ],
+        )
+        .expect_err("duplicate Statement IDs fail closed");
+
+    assert!(matches!(
+        error,
+        IngestionError::DuplicateStatementInRequest { .. }
+    ));
+    assert_eq!(kernel.statement_count(), 0);
+    assert_eq!(kernel.receipts().len(), 1);
+    assert!(kernel.occurrences().is_empty());
 }
 
 #[test]
