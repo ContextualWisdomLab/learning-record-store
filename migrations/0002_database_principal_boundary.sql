@@ -31,7 +31,7 @@ CREATE TABLE tenant_database_principal (
     tenant_key text NOT NULL,
     bound_timestamp timestamptz NOT NULL DEFAULT clock_timestamp(),
     CONSTRAINT tenant_database_principal_name_nonblank
-        CHECK (btrim(database_principal_name) <> ''),
+        CHECK (database_principal_name !~ '^[[:space:]]*$'),
     CONSTRAINT tenant_database_principal_tenant_fk
         FOREIGN KEY (tenant_key)
         REFERENCES tenant_partition (tenant_key)
@@ -127,9 +127,12 @@ BEGIN
         RAISE EXCEPTION 'request statement index must be nonnegative'
             USING ERRCODE = '22023';
     END IF;
-    IF btrim(p_received_xapi_version) = ''
-       OR btrim(p_statement_key) = ''
-       OR btrim(p_statement_comparison_version) = '' THEN
+    IF p_received_xapi_version IS NULL
+       OR p_received_xapi_version ~ '^[[:space:]]*$'
+       OR p_statement_key IS NULL
+       OR p_statement_key ~ '^[[:space:]]*$'
+       OR p_statement_comparison_version IS NULL
+       OR p_statement_comparison_version ~ '^[[:space:]]*$' THEN
         RAISE EXCEPTION 'statement persistence identity/version fields must be nonblank'
             USING ERRCODE = '22023';
     END IF;
