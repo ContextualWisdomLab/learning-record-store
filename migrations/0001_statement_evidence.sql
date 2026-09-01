@@ -203,8 +203,7 @@ BEGIN
         INTO STRICT v_existing
         FROM statement_record AS statement_row
         WHERE statement_row.tenant_key = p_tenant_key
-          AND statement_row.statement_key = p_statement_key
-        FOR UPDATE;
+          AND statement_row.statement_key = p_statement_key;
 
         IF v_existing.received_xapi_version = p_received_xapi_version
            AND v_existing.statement_comparison_version = p_statement_comparison_version
