@@ -56,6 +56,7 @@ jobs:
               Path("tests/request_receipts.rs"),
               Path("tests/voiding_invariants.rs"),
               Path("tests/postgres_evidence.sh"),
+              Path("tests/postgres_atomic_ingestion.sh"),
               Path("migrations/0001_statement_evidence.sql"),
               Path("docs/PRD.md"),
               Path("docs/TRD.md"),
@@ -124,6 +125,7 @@ jobs:
               "CREATE TABLE statement_record",
               "CREATE TABLE statement_ingestion_item",
               "CREATE TABLE voiding_relation",
+              "CREATE FUNCTION persist_statement_occurrence",
               "PRIMARY KEY (tenant_key, statement_key)",
               "PRIMARY KEY (tenant_key, voiding_statement_key)",
               "resolved_statement_key = submitted_statement_key",
@@ -156,6 +158,15 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: postgres
         run: bash tests/postgres_evidence.sh
+
+      - name: Exercise PostgreSQL atomic ingestion races
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_atomic_ingestion.sh
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
