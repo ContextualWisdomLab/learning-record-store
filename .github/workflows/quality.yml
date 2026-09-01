@@ -91,7 +91,7 @@ jobs:
               "request_occurrence_entity": "statement_ingestion_item",
               "request_statement_index": "zero_based",
               "statement_comparison": "received_surface_statement_comparison_requirements",
-              "statement_identity_key": ["tenant_id", "statement_id"],
+              "statement_identity_key": ["tenant_key", "statement_key"],
               "tenant_reference_policy": "composite_tenant_foreign_keys_fail_closed",
           }
           if contract != expected_contract:
