@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${PGHOST:=127.0.0.1}"
+: "${PGPORT:=5432}"
+: "${PGDATABASE:=learning_record_store}"
+: "${PGUSER:=postgres}"
+: "${PGPASSWORD:=postgres}"
+export PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD
+
+psql -v ON_ERROR_STOP=1 -f migrations/0002_database_principal_boundary.sql
+
+psql -v ON_ERROR_STOP=1 <<'SQL'
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lrs_tenant_alpha') THEN
+        CREATE ROLE lrs_tenant_alpha LOGIN PASSWORD 'lrs-alpha-test' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lrs_tenant_beta') THEN
+        CREATE ROLE lrs_tenant_beta LOGIN PASSWORD 'lrs-beta-test' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+    END IF;
+END
+$$;
+
+INSERT INTO tenant_partition (tenant_key)
+VALUES ('tenant-alpha'), ('tenant-beta')
+ON CONFLICT (tenant_key) DO NOTHING;
+
+INSERT INTO tenant_database_principal (database_principal_name, tenant_key)
+VALUES
+    ('lrs_tenant_alpha', 'tenant-alpha'),
+    ('lrs_tenant_beta', 'tenant-beta')
+ON CONFLICT (database_principal_name)
+DO UPDATE SET tenant_key = EXCLUDED.tenant_key;
+
+GRANT CONNECT ON DATABASE learning_record_store TO lrs_tenant_alpha, lrs_tenant_beta;
+GRANT USAGE ON SCHEMA public TO lrs_tenant_alpha, lrs_tenant_beta;
+GRANT SELECT ON tenant_partition, ingestion_receipt, statement_record, statement_ingestion_item, voiding_relation
+    TO lrs_tenant_alpha, lrs_tenant_beta;
+GRANT EXECUTE ON FUNCTION persist_statement_occurrence(
+    text, text, bytea, integer, text, text, bytea, bytea
+) TO lrs_tenant_alpha, lrs_tenant_beta;
+SQL
+
+alpha_psql() {
+  PGUSER=lrs_tenant_alpha PGPASSWORD=lrs-alpha-test psql -v ON_ERROR_STOP=1 "$@"
+}
+
+beta_psql() {
+  PGUSER=lrs_tenant_beta PGPASSWORD=lrs-beta-test psql -v ON_ERROR_STOP=1 "$@"
+}
+
+alpha_visible="$({ alpha_psql -At <<'SQL'
+SET app.tenant_key = 'tenant-beta';
+SELECT string_agg(tenant_key, ',' ORDER BY tenant_key) FROM tenant_partition;
+SQL
+} | tail -n 1)"
+[[ "$alpha_visible" == "tenant-alpha" ]] || {
+  echo "database principal binding was spoofed by caller-selected GUC: $alpha_visible" >&2
+  exit 1
+}
+
+if alpha_psql <<'SQL'
+INSERT INTO statement_record (
+    tenant_key,
+    statement_key,
+    received_xapi_version,
+    statement_comparison_version,
+    content_hash,
+    comparison_bytes,
+    raw_statement_bytes
+) VALUES (
+    'tenant-alpha',
+    'direct-write-must-fail',
+    '2.0',
+    'xapi-2.0-statement-comparison/v1',
+    decode(repeat('11', 32), 'hex'),
+    decode('aa', 'hex'),
+    convert_to('{"id":"direct-write-must-fail"}', 'UTF8')
+);
+SQL
+then
+  echo "tenant application principal unexpectedly bypassed the ingestion function" >&2
+  exit 1
+fi
+
+alpha_outcome="$({ alpha_psql -At <<'SQL'
+SELECT persistence_outcome
+FROM persist_statement_occurrence(
+    'tenant-alpha',
+    '2.0',
+    convert_to('{"id":"principal-alpha-001"}', 'UTF8'),
+    0,
+    'principal-alpha-001',
+    'xapi-2.0-statement-comparison/v1',
+    convert_to('comparison-alpha-001', 'UTF8'),
+    convert_to('{"id":"principal-alpha-001"}', 'UTF8')
+);
+SQL
+} | tail -n 1)"
+[[ "$alpha_outcome" == "accepted" ]] || {
+  echo "expected tenant-alpha function ingest to be accepted, got: $alpha_outcome" >&2
+  exit 1
+}
+
+if alpha_psql <<'SQL'
+SELECT *
+FROM persist_statement_occurrence(
+    'tenant-beta',
+    '2.0',
+    convert_to('{"id":"principal-spoof"}', 'UTF8'),
+    0,
+    'principal-spoof',
+    'xapi-2.0-statement-comparison/v1',
+    convert_to('comparison-spoof', 'UTF8'),
+    convert_to('{"id":"principal-spoof"}', 'UTF8')
+);
+SQL
+then
+  echo "tenant-alpha principal unexpectedly ingested tenant-beta evidence" >&2
+  exit 1
+fi
+
+beta_outcome="$({ beta_psql -At <<'SQL'
+SELECT persistence_outcome
+FROM persist_statement_occurrence(
+    'tenant-beta',
+    '2.0',
+    convert_to('{"id":"principal-beta-001"}', 'UTF8'),
+    0,
+    'principal-beta-001',
+    'xapi-2.0-statement-comparison/v1',
+    convert_to('comparison-beta-001', 'UTF8'),
+    convert_to('{"id":"principal-beta-001"}', 'UTF8')
+);
+SQL
+} | tail -n 1)"
+[[ "$beta_outcome" == "accepted" ]] || {
+  echo "expected tenant-beta function ingest to be accepted, got: $beta_outcome" >&2
+  exit 1
+}
+
+alpha_statement_count="$({ alpha_psql -At <<'SQL'
+SELECT count(*) FROM statement_record WHERE statement_key IN ('principal-alpha-001', 'principal-beta-001');
+SQL
+} | tail -n 1)"
+[[ "$alpha_statement_count" == "1" ]] || {
+  echo "tenant-alpha unexpectedly observed cross-tenant canonical evidence: $alpha_statement_count" >&2
+  exit 1
+}
+
+security_definer_count="$(psql -At <<'SQL'
+SELECT count(*)
+FROM pg_proc AS p
+JOIN pg_roles AS r ON r.oid = p.proowner
+WHERE p.proname = 'persist_statement_occurrence'
+  AND p.prosecdef
+  AND r.rolname = 'lrs_evidence_writer'
+  AND NOT r.rolsuper
+  AND NOT r.rolbypassrls;
+SQL
+)"
+[[ "$security_definer_count" == "1" ]] || {
+  echo "persist_statement_occurrence is not owned by the expected constrained security-definer role" >&2
+  exit 1
+}
+
+for principal in lrs_tenant_alpha lrs_tenant_beta; do
+  direct_write="$(psql -At -v principal="$principal" <<'SQL'
+SELECT has_table_privilege(:'principal', 'statement_record', 'INSERT')
+    OR has_table_privilege(:'principal', 'ingestion_receipt', 'INSERT')
+    OR has_table_privilege(:'principal', 'statement_ingestion_item', 'INSERT');
+SQL
+)"
+  [[ "$direct_write" == "f" ]] || {
+    echo "$principal retained direct immutable-evidence write privileges" >&2
+    exit 1
+  }
+done
+
+echo "postgres authenticated database-principal boundary tests passed"
