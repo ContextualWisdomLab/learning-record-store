@@ -126,4 +126,121 @@ CREATE POLICY voiding_relation_scope_policy ON voiding_relation
     USING (tenant_key = current_setting('app.tenant_key', true))
     WITH CHECK (tenant_key = current_setting('app.tenant_key', true));
 
+CREATE FUNCTION persist_statement_occurrence(
+    p_tenant_key text,
+    p_received_xapi_version text,
+    p_raw_request_bytes bytea,
+    p_request_content_hash bytea,
+    p_request_statement_index integer,
+    p_statement_key text,
+    p_statement_comparison_version text,
+    p_content_hash bytea,
+    p_comparison_bytes bytea,
+    p_raw_statement_bytes bytea
+)
+RETURNS TABLE (
+    persisted_receipt_number bigint,
+    persistence_outcome text,
+    persisted_statement_key text
+)
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    v_receipt_number bigint;
+    v_inserted boolean;
+    v_existing statement_record%ROWTYPE;
+    v_outcome text;
+    v_resolved_statement_key text;
+BEGIN
+    IF p_tenant_key IS DISTINCT FROM current_setting('app.tenant_key', true) THEN
+        RAISE EXCEPTION 'tenant context mismatch for statement persistence'
+            USING ERRCODE = '42501';
+    END IF;
+
+    INSERT INTO ingestion_receipt (
+        tenant_key,
+        received_xapi_version,
+        raw_request_bytes,
+        request_content_hash
+    ) VALUES (
+        p_tenant_key,
+        p_received_xapi_version,
+        p_raw_request_bytes,
+        p_request_content_hash
+    )
+    RETURNING receipt_number INTO v_receipt_number;
+
+    WITH inserted_statement AS (
+        INSERT INTO statement_record (
+            tenant_key,
+            statement_key,
+            received_xapi_version,
+            statement_comparison_version,
+            content_hash,
+            comparison_bytes,
+            raw_statement_bytes
+        ) VALUES (
+            p_tenant_key,
+            p_statement_key,
+            p_received_xapi_version,
+            p_statement_comparison_version,
+            p_content_hash,
+            p_comparison_bytes,
+            p_raw_statement_bytes
+        )
+        ON CONFLICT (tenant_key, statement_key) DO NOTHING
+        RETURNING true AS inserted
+    )
+    SELECT EXISTS (SELECT 1 FROM inserted_statement) INTO v_inserted;
+
+    IF v_inserted THEN
+        v_outcome := 'accepted';
+        v_resolved_statement_key := p_statement_key;
+    ELSE
+        SELECT statement_row.*
+        INTO STRICT v_existing
+        FROM statement_record AS statement_row
+        WHERE statement_row.tenant_key = p_tenant_key
+          AND statement_row.statement_key = p_statement_key
+        FOR UPDATE;
+
+        IF v_existing.received_xapi_version = p_received_xapi_version
+           AND v_existing.statement_comparison_version = p_statement_comparison_version
+           AND v_existing.content_hash = p_content_hash
+           AND v_existing.comparison_bytes = p_comparison_bytes THEN
+            v_outcome := 'replayed';
+            v_resolved_statement_key := p_statement_key;
+        ELSE
+            v_outcome := 'conflict';
+            v_resolved_statement_key := NULL;
+        END IF;
+    END IF;
+
+    INSERT INTO statement_ingestion_item (
+        tenant_key,
+        receipt_number,
+        request_statement_index,
+        submitted_statement_key,
+        comparison_outcome,
+        resolved_statement_key
+    ) VALUES (
+        p_tenant_key,
+        v_receipt_number,
+        p_request_statement_index,
+        p_statement_key,
+        v_outcome,
+        v_resolved_statement_key
+    );
+
+    RETURN QUERY
+    SELECT v_receipt_number, v_outcome, v_resolved_statement_key;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION persist_statement_occurrence(
+    text, text, bytea, bytea, integer, text, text, bytea, bytea, bytea
+) FROM PUBLIC;
+
 COMMIT;
