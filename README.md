@@ -1,5 +1,7 @@
 # Learning Record Store
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ContextualWisdomLab/learning-record-store)
+
 Authoritative xAPI learning-record persistence for the CWL Learning Platform.
 
 ## Scope
