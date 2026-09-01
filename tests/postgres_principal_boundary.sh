@@ -121,6 +121,88 @@ then
   exit 1
 fi
 
+for field_case in version statement_key comparison_version; do
+  case "$field_case" in
+    version)
+      received_version=$'\t'
+      statement_key='whitespace-version-001'
+      comparison_version='xapi-2.0-statement-comparison/v1'
+      ;;
+    statement_key)
+      received_version='2.0'
+      statement_key=$'\n'
+      comparison_version='xapi-2.0-statement-comparison/v1'
+      ;;
+    comparison_version)
+      received_version='2.0'
+      statement_key='whitespace-comparison-version-001'
+      comparison_version=$'\t\n'
+      ;;
+  esac
+  if PGUSER=lrs_tenant_alpha PGPASSWORD=lrs-alpha-test psql -v ON_ERROR_STOP=1 \
+      -v received_version="$received_version" \
+      -v statement_key="$statement_key" \
+      -v comparison_version="$comparison_version" <<'SQL'
+SELECT *
+FROM persist_statement_occurrence(
+    'tenant-alpha',
+    :'received_version',
+    convert_to('{"id":"whitespace-contract"}', 'UTF8'),
+    0,
+    :'statement_key',
+    :'comparison_version',
+    convert_to('comparison-whitespace-contract', 'UTF8'),
+    convert_to('{"id":"whitespace-contract"}', 'UTF8')
+);
+SQL
+  then
+    echo "persist_statement_occurrence accepted whitespace-only $field_case" >&2
+    exit 1
+  fi
+done
+
+if psql -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO ingestion_receipt (
+    tenant_key,
+    received_xapi_version,
+    raw_request_bytes,
+    request_content_hash
+) VALUES (
+    'tenant-alpha',
+    E'\t',
+    convert_to('{"id":"whitespace-table-version"}', 'UTF8'),
+    sha256(convert_to('{"id":"whitespace-table-version"}', 'UTF8'))
+);
+SQL
+then
+  echo "ingestion_receipt accepted a whitespace-only xAPI version" >&2
+  exit 1
+fi
+
+if psql -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO statement_record (
+    tenant_key,
+    statement_key,
+    received_xapi_version,
+    statement_comparison_version,
+    content_hash,
+    comparison_bytes,
+    raw_statement_bytes
+) VALUES (
+    'tenant-alpha',
+    E'\n',
+    '2.0',
+    E'\t',
+    sha256(convert_to('comparison-whitespace-table', 'UTF8')),
+    convert_to('comparison-whitespace-table', 'UTF8'),
+    convert_to('{"id":"whitespace-table-statement"}', 'UTF8')
+);
+SQL
+then
+  echo "statement_record accepted whitespace-only statement/comparison identity" >&2
+  exit 1
+fi
+
 beta_outcome="$({ beta_psql -At <<'SQL'
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
