@@ -18,8 +18,8 @@ A learning platform cannot make reliable downstream progression, audit, or compl
 1. An authorized tenant sends a statement under an explicit xAPI version.
 2. `statement_validation` validates the received surface and produces a version-specific Statement comparison representation without mutating the source evidence.
 3. `ingestion_evidence` records the exact received request evidence and its digest.
-4. `statement_store` resolves `(tenant_key, statement_key)` atomically.
-5. A previously unseen identity is accepted once. An equivalent retry resolves to the existing canonical Statement. A version or comparison mismatch is recorded as a rejected conflict and never overwrites canonical evidence.
+4. `statement_store` resolves `(tenant_key, statement_key)` atomically. The current PostgreSQL primitive `persist_statement_occurrence` records a receipt, wins or observes the canonical primary-key conflict, compares version/comparison evidence, and records `accepted`, `replayed`, or `conflict` in one transaction.
+5. A previously unseen identity is accepted once. An equivalent retry resolves to the existing canonical Statement. A version or comparison mismatch is recorded as a rejected conflict and never overwrites canonical evidence; the application must commit that audit outcome before translating it to a protocol error response.
 6. Voiding creates a tenant-local relationship between immutable Statements; it never deletes the original Statement.
 7. Consumers query only tenant-authorized evidence and cannot use compatibility artifacts as a second source of canonical truth.
 
@@ -27,7 +27,7 @@ A learning platform cannot make reliable downstream progression, audit, or compl
 
 The slice is reviewable when executable Rust tests prove first acceptance, exact-retry reuse, conflict rejection, source-byte retention for accepted/replayed/rejected request occurrences, protocol-version separation, tenant-scoped identity, and non-destructive voiding. The persistence schema must use descriptive multiword `snake_case` objects, preserve a single canonical `(tenant_key, statement_key)` identity, use composite tenant foreign keys, and fail closed through PostgreSQL row-level security when tenant context is absent or mismatched.
 
-The slice is not production-ready until the same decision contract is proven against real PostgreSQL transactions under duplicate-ID concurrency, a non-superuser/non-BYPASSRLS role, rollback/reapply and backup/restore, and version-specific xAPI conformance fixtures. Public Rust surfaces must remain fully documented and touched production paths must reach the repository coverage target without warning suppression.
+The branch now contains a real PostgreSQL item-level transaction primitive and tests that race identical and conflicting submissions using an application-equivalent non-superuser role. Commercial acceptance of that evidence still depends on successful exact-head GitHub execution. The product remains non-production-ready until a Rust repository/network adapter uses the committed outcome correctly, POST-array requests share one immutable receipt across their item occurrences, migration rollback/reapply and backup/restore are proven, crash/retry recovery is exercised, and version-specific xAPI conformance fixtures pass. Public Rust surfaces must remain fully documented and touched production paths must reach the repository coverage target without warning suppression.
 
 ## Non-goals for this slice
 
@@ -40,7 +40,7 @@ The slice is not production-ready until the same decision contract is proven aga
 
 ## Product measures
 
-For this foundational slice, commercialization progress is evidence-based rather than traffic-based: zero canonical duplicates under tested races, zero accepted conflicting replays, zero cross-tenant reads or references under the production database role, deterministic preservation of every request occurrence, and reproducible exact-head CI/conformance receipts. Latency and load objectives become release gates when the network service is introduced; they are not claimed by the in-process kernel.
+For this foundational slice, commercialization progress is evidence-based rather than traffic-based: zero canonical duplicates under tested races, zero accepted conflicting replays, zero cross-tenant reads or references under the production database role, deterministic preservation of every request occurrence, and reproducible exact-head CI/conformance receipts. The current PostgreSQL race fixtures encode the first two database invariants but do not become evidence until the exact PR head passes them. Latency and load objectives become release gates when the network service is introduced; they are not claimed by the in-process kernel or SQL primitive.
 
 ## Dependency and reuse boundaries
 
