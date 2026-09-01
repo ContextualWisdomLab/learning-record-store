@@ -3,7 +3,8 @@ BEGIN;
 CREATE TABLE tenant_partition (
     tenant_key text PRIMARY KEY,
     created_timestamp timestamptz NOT NULL DEFAULT clock_timestamp(),
-    CONSTRAINT tenant_partition_key_nonblank CHECK (btrim(tenant_key) <> '')
+    CONSTRAINT tenant_partition_key_nonblank
+        CHECK (tenant_key !~ '^[[:space:]]*$')
 );
 
 CREATE TABLE ingestion_receipt (
@@ -18,7 +19,7 @@ CREATE TABLE ingestion_receipt (
         FOREIGN KEY (tenant_key)
         REFERENCES tenant_partition (tenant_key),
     CONSTRAINT ingestion_receipt_version_nonblank
-        CHECK (btrim(received_xapi_version) <> ''),
+        CHECK (received_xapi_version !~ '^[[:space:]]*$'),
     CONSTRAINT ingestion_receipt_request_nonempty
         CHECK (octet_length(raw_request_bytes) > 0),
     CONSTRAINT ingestion_receipt_hash_length
@@ -39,11 +40,11 @@ CREATE TABLE statement_record (
         FOREIGN KEY (tenant_key)
         REFERENCES tenant_partition (tenant_key),
     CONSTRAINT statement_record_key_nonblank
-        CHECK (btrim(statement_key) <> ''),
+        CHECK (statement_key !~ '^[[:space:]]*$'),
     CONSTRAINT statement_record_version_nonblank
-        CHECK (btrim(received_xapi_version) <> ''),
+        CHECK (received_xapi_version !~ '^[[:space:]]*$'),
     CONSTRAINT statement_record_comparison_version_nonblank
-        CHECK (btrim(statement_comparison_version) <> ''),
+        CHECK (statement_comparison_version !~ '^[[:space:]]*$'),
     CONSTRAINT statement_record_hash_length
         CHECK (octet_length(content_hash) = 32),
     CONSTRAINT statement_record_comparison_nonempty
@@ -69,7 +70,7 @@ CREATE TABLE statement_ingestion_item (
     CONSTRAINT statement_ingestion_index_nonnegative
         CHECK (request_statement_index >= 0),
     CONSTRAINT statement_ingestion_submitted_nonblank
-        CHECK (btrim(submitted_statement_key) <> ''),
+        CHECK (submitted_statement_key !~ '^[[:space:]]*$'),
     CONSTRAINT statement_ingestion_outcome_allowed
         CHECK (comparison_outcome IN ('accepted', 'replayed', 'conflict')),
     CONSTRAINT statement_ingestion_resolution_consistent CHECK (
