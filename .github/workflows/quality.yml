@@ -53,6 +53,7 @@ jobs:
               Path("rust-toolchain.toml"),
               Path("src/lib.rs"),
               Path("tests/ingestion_kernel.rs"),
+              Path("tests/request_receipts.rs"),
               Path("tests/voiding_invariants.rs"),
               Path("tests/postgres_evidence.sh"),
               Path("migrations/0001_statement_evidence.sql"),
