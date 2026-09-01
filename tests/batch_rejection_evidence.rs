@@ -87,6 +87,73 @@ fn conflicting_batch_records_every_submitted_item_without_partial_acceptance() {
 }
 
 #[test]
+fn every_stored_conflict_in_a_rejected_batch_is_classified_as_conflict() {
+    let mut kernel = StatementKernel::default();
+    for (statement, comparison) in [
+        ("statement-conflict-a", b"comparison-stored-a".as_slice()),
+        ("statement-conflict-b", b"comparison-stored-b".as_slice()),
+    ] {
+        kernel
+            .ingest(candidate(
+                "tenant-alpha",
+                statement,
+                XapiVersion::V2_0,
+                &format!(r#"{{"id":"{statement}","verb":"stored"}}"#),
+                comparison,
+            ))
+            .expect("seed conflicting canonical statement");
+    }
+    let baseline_statement_count = kernel.statement_count();
+    let baseline_occurrence_count = kernel.occurrences().len();
+
+    let error = kernel
+        .ingest_batch(
+            TenantKey::new("tenant-alpha").unwrap(),
+            XapiVersion::V2_0,
+            br#"[{"id":"statement-conflict-a"},{"id":"statement-new"},{"id":"statement-conflict-b"}]"#.to_vec(),
+            vec![
+                candidate(
+                    "tenant-alpha",
+                    "statement-conflict-a",
+                    XapiVersion::V2_0,
+                    r#"{"id":"statement-conflict-a","verb":"changed"}"#,
+                    b"comparison-conflict-a",
+                ),
+                candidate(
+                    "tenant-alpha",
+                    "statement-new",
+                    XapiVersion::V2_0,
+                    r#"{"id":"statement-new"}"#,
+                    b"comparison-new",
+                ),
+                candidate(
+                    "tenant-alpha",
+                    "statement-conflict-b",
+                    XapiVersion::V2_0,
+                    r#"{"id":"statement-conflict-b","verb":"changed"}"#,
+                    b"comparison-conflict-b",
+                ),
+            ],
+        )
+        .expect_err("all stored conflicts reject the batch");
+
+    assert!(matches!(
+        error,
+        IngestionError::StatementConflict { ref statement_key, .. }
+            if statement_key == "statement-conflict-a"
+    ));
+    assert_eq!(kernel.statement_count(), baseline_statement_count);
+    let batch_occurrences = &kernel.occurrences()[baseline_occurrence_count..];
+    assert_eq!(batch_occurrences.len(), 3);
+    assert_eq!(batch_occurrences[0].status(), IngestionStatus::Conflict);
+    assert_eq!(batch_occurrences[1].status(), IngestionStatus::BatchRejected);
+    assert_eq!(batch_occurrences[2].status(), IngestionStatus::Conflict);
+    assert!(batch_occurrences
+        .iter()
+        .all(|occurrence| occurrence.receipt_number() == batch_occurrences[0].receipt_number()));
+}
+
+#[test]
 fn duplicate_identity_is_detected_before_stored_conflict_comparison() {
     let mut kernel = StatementKernel::default();
     kernel
