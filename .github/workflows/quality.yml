@@ -57,7 +57,9 @@ jobs:
               Path("tests/voiding_invariants.rs"),
               Path("tests/postgres_evidence.sh"),
               Path("tests/postgres_atomic_ingestion.sh"),
+              Path("tests/postgres_principal_boundary.sh"),
               Path("migrations/0001_statement_evidence.sql"),
+              Path("migrations/0002_database_principal_boundary.sql"),
               Path("docs/PRD.md"),
               Path("docs/TRD.md"),
               Path("docs/ARCHITECTURE.md"),
@@ -138,7 +140,23 @@ jobs:
           for required_fragment in required_sql:
               if required_fragment not in sql:
                   raise SystemExit(f"missing persistence contract: {required_fragment}")
-          if re.search(r"\b(?:CREATE TABLE|CREATE INDEX|CREATE SCHEMA)\s+id\b", sql, re.IGNORECASE):
+
+          principal_sql = Path("migrations/0002_database_principal_boundary.sql").read_text(encoding="utf-8")
+          required_principal_sql = (
+              "CREATE TABLE tenant_database_principal",
+              "session_user",
+              "SECURITY DEFINER",
+              "lrs_evidence_writer",
+              "NOBYPASSRLS",
+              "ALTER POLICY tenant_partition_scope_policy",
+              "ALTER FUNCTION persist_statement_occurrence",
+          )
+          for required_fragment in required_principal_sql:
+              if required_fragment not in principal_sql:
+                  raise SystemExit(f"missing database principal boundary contract: {required_fragment}")
+          if "current_setting('app.tenant_key'" in principal_sql:
+              raise SystemExit("database principal boundary must not authorize tenant scope from caller-selected app.tenant_key")
+          if re.search(r"\b(?:CREATE TABLE|CREATE INDEX|CREATE SCHEMA)\s+id\b", sql + principal_sql, re.IGNORECASE):
               raise SystemExit("standalone generic persistence object name 'id' is forbidden")
 
           forbidden = ("TODO: replace", "TBD: replace", "PLACEHOLDER_REPLACE")
@@ -167,6 +185,15 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: postgres
         run: bash tests/postgres_atomic_ingestion.sh
+
+      - name: Exercise authenticated database-principal tenant boundary
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_principal_boundary.sh
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
