@@ -88,6 +88,10 @@ fn receipt_context_mismatch_fails_before_canonical_state_changes() {
         tenant_error,
         IngestionError::ReceiptContextMismatch { .. }
     ));
+    assert_eq!(
+        tenant_error.to_string(),
+        format!("request receipt context mismatch: {receipt_number}")
+    );
 
     let version_error = kernel
         .ingest_at_receipt(
@@ -104,6 +108,10 @@ fn receipt_context_mismatch_fails_before_canonical_state_changes() {
         version_error,
         IngestionError::ReceiptContextMismatch { .. }
     ));
+    assert_eq!(
+        version_error.to_string(),
+        format!("request receipt context mismatch: {receipt_number}")
+    );
     assert_eq!(kernel.statement_count(), 0);
     assert!(kernel.occurrences().is_empty());
 }
@@ -134,6 +142,10 @@ fn one_request_index_cannot_be_reused() {
         error,
         IngestionError::OccurrenceAlreadyRecorded { .. }
     ));
+    assert_eq!(
+        error.to_string(),
+        format!("request occurrence already recorded: receipt {receipt_number}, index 0")
+    );
     assert_eq!(kernel.statement_count(), 1);
     assert_eq!(kernel.occurrences().len(), 1);
 }
@@ -153,4 +165,5 @@ fn unknown_receipt_fails_closed() {
         error,
         IngestionError::ReceiptNotFound { receipt_number: 42 }
     );
+    assert_eq!(error.to_string(), "request receipt not found: 42");
 }
