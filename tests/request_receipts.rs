@@ -133,11 +133,14 @@ fn batch_conflict_retains_receipt_without_partial_canonical_acceptance() {
     assert_eq!(kernel.statement_count(), statement_count_before_batch);
     assert_eq!(kernel.receipts().len(), 2);
     assert_eq!(kernel.receipts()[1].receipt_number(), receipt_number);
-    assert_eq!(kernel.occurrences().len(), occurrence_count_before_batch + 1);
-    let rejected_occurrence = kernel.occurrences().last().expect("conflict occurrence");
-    assert_eq!(rejected_occurrence.receipt_number(), receipt_number);
-    assert_eq!(rejected_occurrence.request_statement_index(), 1);
-    assert_eq!(rejected_occurrence.status(), IngestionStatus::Conflict);
+    let rejected_occurrences = &kernel.occurrences()[occurrence_count_before_batch..];
+    assert_eq!(rejected_occurrences.len(), 2);
+    assert_eq!(rejected_occurrences[0].receipt_number(), receipt_number);
+    assert_eq!(rejected_occurrences[0].request_statement_index(), 0);
+    assert_eq!(rejected_occurrences[0].status(), IngestionStatus::BatchRejected);
+    assert_eq!(rejected_occurrences[1].receipt_number(), receipt_number);
+    assert_eq!(rejected_occurrences[1].request_statement_index(), 1);
+    assert_eq!(rejected_occurrences[1].status(), IngestionStatus::Conflict);
 }
 
 #[test]
@@ -168,7 +171,11 @@ fn duplicate_statement_ids_reject_batch_before_canonical_changes() {
     );
     assert_eq!(kernel.statement_count(), 0);
     assert_eq!(kernel.receipts().len(), 1);
-    assert!(kernel.occurrences().is_empty());
+    assert_eq!(kernel.occurrences().len(), 2);
+    assert!(kernel
+        .occurrences()
+        .iter()
+        .all(|occurrence| occurrence.status() == IngestionStatus::BatchRejected));
 }
 
 #[test]
@@ -210,7 +217,9 @@ fn batch_context_mismatch_retains_request_but_changes_no_statement_state() {
     ));
     assert_eq!(kernel.statement_count(), 0);
     assert_eq!(kernel.receipts().len(), 1);
-    assert!(kernel.occurrences().is_empty());
+    assert_eq!(kernel.occurrences().len(), 1);
+    assert_eq!(kernel.occurrences()[0].status(), IngestionStatus::BatchRejected);
+    assert_eq!(kernel.occurrences()[0].tenant_key(), &alpha);
 
     let version_error = kernel
         .ingest_batch(
@@ -230,7 +239,15 @@ fn batch_context_mismatch_retains_request_but_changes_no_statement_state() {
     ));
     assert_eq!(kernel.statement_count(), 0);
     assert_eq!(kernel.receipts().len(), 2);
-    assert!(kernel.occurrences().is_empty());
+    assert_eq!(kernel.occurrences().len(), 2);
+    assert!(kernel
+        .occurrences()
+        .iter()
+        .all(|occurrence| occurrence.status() == IngestionStatus::BatchRejected));
+    assert!(kernel
+        .occurrences()
+        .iter()
+        .all(|occurrence| occurrence.tenant_key() == &alpha));
 }
 
 #[test]
