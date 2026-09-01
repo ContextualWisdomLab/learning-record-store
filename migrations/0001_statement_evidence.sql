@@ -73,7 +73,8 @@ CREATE TABLE statement_ingestion_item (
     CONSTRAINT statement_ingestion_outcome_allowed
         CHECK (comparison_outcome IN ('accepted', 'replayed', 'conflict')),
     CONSTRAINT statement_ingestion_resolution_consistent CHECK (
-        (comparison_outcome IN ('accepted', 'replayed') AND resolved_statement_key IS NOT NULL)
+        (comparison_outcome IN ('accepted', 'replayed')
+            AND resolved_statement_key = submitted_statement_key)
         OR (comparison_outcome = 'conflict' AND resolved_statement_key IS NULL)
     )
 );
@@ -83,7 +84,7 @@ CREATE TABLE voiding_relation (
     voiding_statement_key text NOT NULL,
     voided_statement_key text NOT NULL,
     recorded_timestamp timestamptz NOT NULL DEFAULT clock_timestamp(),
-    PRIMARY KEY (tenant_key, voiding_statement_key, voided_statement_key),
+    PRIMARY KEY (tenant_key, voiding_statement_key),
     CONSTRAINT voiding_relation_voiding_fk
         FOREIGN KEY (tenant_key, voiding_statement_key)
         REFERENCES statement_record (tenant_key, statement_key),
