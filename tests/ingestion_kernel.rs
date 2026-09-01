@@ -36,6 +36,7 @@ fn first_ingest_preserves_exact_source_evidence() {
     assert_eq!(outcome.status(), IngestionStatus::Accepted);
     assert_eq!(outcome.statement().raw_statement_bytes(), raw);
     assert_eq!(kernel.receipts().len(), 1);
+    assert_eq!(kernel.receipts()[0].raw_request_bytes(), raw);
     assert_eq!(kernel.occurrences().len(), 1);
 }
 
@@ -49,11 +50,12 @@ fn equivalent_replay_reuses_canonical_statement_and_keeps_new_receipt() {
         r#"{"id":"statement-001","verb":"completed"}"#,
         b"comparison-equivalent",
     );
+    let replay_raw = r#"{ "verb":"completed", "id":"statement-001" }"#;
     let replay = candidate(
         "tenant-alpha",
         "statement-001",
         XapiVersion::V2_0,
-        r#"{ "verb":"completed", "id":"statement-001" }"#,
+        replay_raw,
         b"comparison-equivalent",
     );
 
@@ -64,6 +66,7 @@ fn equivalent_replay_reuses_canonical_statement_and_keeps_new_receipt() {
     assert_eq!(accepted.statement(), replayed.statement());
     assert_eq!(kernel.statement_count(), 1);
     assert_eq!(kernel.receipts().len(), 2);
+    assert_eq!(kernel.receipts()[1].raw_request_bytes(), replay_raw.as_bytes());
     assert_eq!(kernel.occurrences().len(), 2);
 }
 
@@ -77,11 +80,12 @@ fn conflicting_replay_fails_closed_without_overwriting_canonical_evidence() {
         r#"{"id":"statement-001","verb":"completed"}"#,
         b"comparison-original",
     );
+    let conflict_raw = r#"{"id":"statement-001","verb":"failed"}"#;
     let conflict = candidate(
         "tenant-alpha",
         "statement-001",
         XapiVersion::V2_0,
-        r#"{"id":"statement-001","verb":"failed"}"#,
+        conflict_raw,
         b"comparison-conflict",
     );
 
@@ -91,6 +95,7 @@ fn conflicting_replay_fails_closed_without_overwriting_canonical_evidence() {
     assert!(matches!(error, IngestionError::StatementConflict { .. }));
     assert_eq!(kernel.statement_count(), 1);
     assert_eq!(kernel.receipts().len(), 2);
+    assert_eq!(kernel.receipts()[1].raw_request_bytes(), conflict_raw.as_bytes());
     assert_eq!(kernel.occurrences().len(), 2);
     assert_eq!(
         kernel
