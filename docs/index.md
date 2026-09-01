@@ -1,3 +1,7 @@
+---
+title: Learning Record Store
+---
+
 # Learning Record Store
 
 Learning Record Store is the ContextualWisdomLab persistence boundary for durable learning evidence. It is being built to validate, preserve, and query xAPI statements, document resources, attachments, and voiding relationships while keeping tenant boundaries and received evidence explicit.
@@ -10,13 +14,14 @@ The repository is still pre-release. Documentation and active pull requests desc
 
 ## Start here
 
-- [Repository README](../README.md) — product scope and repository status.
-- [Architecture](ARCHITECTURE.md) — bounded context and system structure.
-- [Data model](DATA_MODEL.md) — normalized learning-evidence model and invariants.
-- [Product and technical gap baseline](product-technical-gap-baseline.md) — current gaps and evidence required for commercialization.
-- [Architecture decisions](adr/) — reviewed decisions and rejected alternatives.
-- [Research and standards evidence](doctoring/) — normative references and traceability.
-- [Changelog](../CHANGELOG.md) — repository-visible changes.
+- [Repository README](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/README.md) — product scope and repository status.
+- [Architecture](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/ARCHITECTURE.md) — bounded context and system structure.
+- [Data model](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/DATA_MODEL.md) — normalized learning-evidence model and invariants.
+- [Product and technical gap baseline](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/product-technical-gap-baseline.md) — current gaps and evidence required for commercialization.
+- [Authority boundary decision](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/adr/0001-lrs-authority-boundary.md) — reviewed ownership and integration decision.
+- [Standards traceability](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/doctoring/STANDARD_TRACEABILITY.md) — normative surfaces and executable-evidence requirements.
+- [Research references](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/doctoring/REFERENCES.md) — authoritative standards references.
+- [Changelog](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/CHANGELOG.md) — repository-visible changes.
 - [GitHub Releases](https://github.com/ContextualWisdomLab/learning-record-store/releases) — future versioned release artifacts when they exist.
 - [Ask DeepWiki](https://deepwiki.com/ContextualWisdomLab/learning-record-store) — repository-aware questions and navigation.
 
@@ -32,4 +37,4 @@ Tenant isolation, authenticated and authorized access, immutable evidence preser
 
 ## Publication status
 
-This file is a GitHub Pages source prerequisite, not proof that Pages is live. Publication is complete only after the source reaches the protected default branch, the organization-owned repository metadata reconciler enables the reviewed Pages configuration, deployment succeeds, and the public HTTPS content is re-read successfully.
+This file is a GitHub Pages source prerequisite, not proof that Pages is live. The front matter ensures the Markdown source is rendered by the Pages/Jekyll pipeline when that pipeline is enabled. Publication is complete only after the source reaches the protected default branch, the organization-owned repository metadata reconciler enables the reviewed Pages configuration, deployment succeeds, and the public HTTPS content and navigation are re-read successfully.
