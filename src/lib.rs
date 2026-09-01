@@ -180,7 +180,7 @@ impl IngestionReceipt {
         &self.raw_request_bytes
     }
 
-    /// Returns SHA-256 over the exact received Statement bytes for this occurrence.
+    /// Returns SHA-256 over the exact received request bytes for this occurrence.
     #[must_use]
     pub const fn request_content_hash(&self) -> &[u8; 32] {
         &self.request_content_hash
@@ -327,6 +327,23 @@ pub enum IngestionError {
         /// Missing Statement identifier.
         statement_key: String,
     },
+    /// A request receipt number was not issued by this kernel instance.
+    ReceiptNotFound {
+        /// Unknown receipt number.
+        receipt_number: u64,
+    },
+    /// A Statement item does not belong to the receipt's tenant and protocol context.
+    ReceiptContextMismatch {
+        /// Receipt whose immutable context did not match the submitted item.
+        receipt_number: u64,
+    },
+    /// An immutable `(receipt, request index)` occurrence already exists.
+    OccurrenceAlreadyRecorded {
+        /// Receipt that already owns the index.
+        receipt_number: u64,
+        /// Zero-based request index already recorded.
+        request_statement_index: u32,
+    },
     /// A voiding Statement attempted an impossible self-relation.
     InvalidVoidingRelation {
         /// Statement that attempted to act as the voiding source.
@@ -360,6 +377,19 @@ impl Display for IngestionError {
             Self::StatementNotFound { statement_key } => {
                 write!(formatter, "statement not found: {statement_key}")
             }
+            Self::ReceiptNotFound { receipt_number } => {
+                write!(formatter, "request receipt not found: {receipt_number}")
+            }
+            Self::ReceiptContextMismatch { receipt_number } => {
+                write!(formatter, "request receipt context mismatch: {receipt_number}")
+            }
+            Self::OccurrenceAlreadyRecorded {
+                receipt_number,
+                request_statement_index,
+            } => write!(
+                formatter,
+                "request occurrence already recorded: receipt {receipt_number}, index {request_statement_index}"
+            ),
             Self::InvalidVoidingRelation {
                 voiding_statement_key,
                 voided_statement_key,
@@ -396,25 +426,81 @@ pub struct StatementKernel {
 }
 
 impl StatementKernel {
-    /// Accepts a new Statement, reuses an exact replay, or rejects a conflicting replay.
+    /// Creates one immutable receipt for the exact bytes of an ingestion request.
     ///
-    /// A receipt and occurrence are retained before conflict is returned so rejected evidence
-    /// remains auditable. Production persistence must apply this sequence in one transaction.
+    /// A single receipt may own multiple zero-based Statement occurrences for a POST array. The
+    /// caller must complete version-specific batch validation before invoking item ingestion.
+    pub fn begin_request(
+        &mut self,
+        tenant_key: TenantKey,
+        received_xapi_version: XapiVersion,
+        raw_request_bytes: Vec<u8>,
+    ) -> Result<u64, IngestionError> {
+        if raw_request_bytes.is_empty() {
+            return Err(IngestionError::InvalidEvidence {
+                field: "raw_request_bytes",
+            });
+        }
+        self.next_receipt_number = self.next_receipt_number.saturating_add(1);
+        let receipt_number = self.next_receipt_number;
+        let request_content_hash = sha256(&raw_request_bytes);
+        self.receipts.push(IngestionReceipt {
+            receipt_number,
+            tenant_key,
+            raw_request_bytes,
+            request_content_hash,
+            received_xapi_version,
+        });
+        Ok(receipt_number)
+    }
+
+    /// Accepts a single-Statement request, reuses an exact replay, or rejects a conflict.
+    ///
+    /// This convenience path records the Statement bytes as the complete request body at index
+    /// zero. Batch callers use [`StatementKernel::begin_request`] once and then
+    /// [`StatementKernel::ingest_at_receipt`] for each validated item.
     pub fn ingest(
         &mut self,
         candidate: StatementCandidate,
     ) -> Result<IngestionOutcome, IngestionError> {
-        self.next_receipt_number = self.next_receipt_number.saturating_add(1);
-        let receipt_number = self.next_receipt_number;
-        let raw_request_bytes = candidate.raw_statement_bytes.clone();
-        let request_content_hash = sha256(&raw_request_bytes);
-        self.receipts.push(IngestionReceipt {
-            receipt_number,
-            tenant_key: candidate.tenant_key.clone(),
-            raw_request_bytes,
-            request_content_hash,
-            received_xapi_version: candidate.received_xapi_version,
-        });
+        let receipt_number = self.begin_request(
+            candidate.tenant_key.clone(),
+            candidate.received_xapi_version,
+            candidate.raw_statement_bytes.clone(),
+        )?;
+        self.ingest_at_receipt(receipt_number, 0, candidate)
+    }
+
+    /// Applies one validated Statement item to an existing immutable request receipt.
+    ///
+    /// Receipt tenant/version context and the `(receipt_number, request_statement_index)` identity
+    /// are checked before canonical Statement state changes. Conflicts still append an immutable
+    /// occurrence so rejected evidence remains auditable.
+    pub fn ingest_at_receipt(
+        &mut self,
+        receipt_number: u64,
+        request_statement_index: u32,
+        candidate: StatementCandidate,
+    ) -> Result<IngestionOutcome, IngestionError> {
+        let receipt = self
+            .receipts
+            .iter()
+            .find(|receipt| receipt.receipt_number == receipt_number)
+            .ok_or(IngestionError::ReceiptNotFound { receipt_number })?;
+        if receipt.tenant_key != candidate.tenant_key
+            || receipt.received_xapi_version != candidate.received_xapi_version
+        {
+            return Err(IngestionError::ReceiptContextMismatch { receipt_number });
+        }
+        if self.occurrences.iter().any(|occurrence| {
+            occurrence.receipt_number == receipt_number
+                && occurrence.request_statement_index == request_statement_index
+        }) {
+            return Err(IngestionError::OccurrenceAlreadyRecorded {
+                receipt_number,
+                request_statement_index,
+            });
+        }
 
         let key = (
             candidate.tenant_key.clone(),
@@ -436,7 +522,7 @@ impl StatementKernel {
                 receipt_number,
                 tenant_key: candidate.tenant_key,
                 statement_key: candidate.statement_key.clone(),
-                request_statement_index: 0,
+                request_statement_index,
                 status,
             });
             if exact_replay {
@@ -466,7 +552,7 @@ impl StatementKernel {
             receipt_number,
             tenant_key: candidate.tenant_key,
             statement_key: candidate.statement_key,
-            request_statement_index: 0,
+            request_statement_index,
             status: IngestionStatus::Accepted,
         });
         Ok(IngestionOutcome {
