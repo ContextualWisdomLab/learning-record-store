@@ -30,7 +30,7 @@ fn self_voiding_is_rejected_before_persistence() {
         .expect_err("a Statement cannot void itself");
 
     assert!(matches!(
-        error,
+        &error,
         IngestionError::InvalidVoidingRelation { .. }
     ));
     assert_eq!(
@@ -60,7 +60,7 @@ fn one_voiding_statement_cannot_acquire_multiple_targets() {
         .expect_err("immutable voiding Statement cannot change target");
 
     assert!(matches!(
-        error,
+        &error,
         IngestionError::VoidingTargetConflict { .. }
     ));
     assert_eq!(
