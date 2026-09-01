@@ -53,7 +53,22 @@ jobs:
           block = data_model.split(start_marker, 1)[1].split(end_marker, 1)[0].strip()
           if not block.startswith("```json\n") or not block.endswith("\n```"):
               raise SystemExit("LRS bootstrap contract must be a fenced JSON object")
-          contract = json.loads(block[len("```json\n"):-len("\n```")])
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f"duplicate JSON object key: {key!r}")
+                  result[key] = value
+              return result
+
+          try:
+              contract = json.loads(
+                  block[len("```json\n"):-len("\n```")],
+                  object_pairs_hook=reject_duplicate_keys,
+              )
+          except ValueError as exc:
+              raise SystemExit(f"invalid LRS bootstrap contract: {exc}") from exc
 
           expected_contract = {
               "batch_duplicate_statement_id": "reject_before_persistence",
