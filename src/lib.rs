@@ -202,6 +202,8 @@ pub enum IngestionStatus {
     Replayed,
     /// The occurrence reused an identity with incompatible version or content.
     Conflict,
+    /// The item was retained as evidence but the enclosing batch was rejected atomically.
+    BatchRejected,
 }
 
 /// Immutable per-request association to a canonical Statement identity or rejection.
@@ -488,12 +490,12 @@ impl StatementKernel {
 
     /// Applies a validated POST array without partially accepting canonical Statement identities.
     ///
-    /// The exact request receipt is retained first. Tenant/version mismatch, a duplicate Statement
-    /// identifier inside the request, or a conflict with canonical evidence is then discovered by
-    /// a read-only preflight before any new `StoredStatement` is inserted. A conflicting item keeps
-    /// its occurrence evidence while the rest of the batch makes no canonical changes. Once the
-    /// preflight succeeds, applying every item is infallible in this single-threaded reference
-    /// kernel and all outcomes share the same request receipt.
+    /// The exact request receipt is retained first. Tenant/version mismatch and duplicate identity
+    /// checks run before canonical replay/conflict comparison so request-level failures have stable
+    /// precedence. Any rejected batch records one immutable occurrence for every submitted index;
+    /// only the item that conflicts with stored evidence is marked `Conflict`, while its siblings
+    /// are `BatchRejected`. Canonical Statement state changes only after the full read-only preflight
+    /// succeeds, and all successful outcomes share the same request receipt.
     pub fn ingest_batch(
         &mut self,
         tenant_key: TenantKey,
@@ -511,21 +513,42 @@ impl StatementKernel {
             received_xapi_version,
             raw_request_bytes,
         )?;
+
+        if candidates.iter().any(|candidate| {
+            candidate.tenant_key != tenant_key
+                || candidate.received_xapi_version != received_xapi_version
+        }) {
+            self.record_batch_rejection_occurrences(
+                receipt_number,
+                &tenant_key,
+                &candidates,
+                None,
+            );
+            return Err(IngestionError::ReceiptContextMismatch { receipt_number });
+        }
+
         let mut statement_keys = BTreeSet::new();
+        let mut duplicate_statement_key = None;
+        for candidate in &candidates {
+            if !statement_keys.insert(candidate.statement_key.clone()) {
+                duplicate_statement_key = Some(candidate.statement_key.clone());
+                break;
+            }
+        }
+        if let Some(statement_key) = duplicate_statement_key {
+            self.record_batch_rejection_occurrences(
+                receipt_number,
+                &tenant_key,
+                &candidates,
+                None,
+            );
+            return Err(IngestionError::DuplicateStatementInRequest {
+                receipt_number,
+                statement_key,
+            });
+        }
 
         for (request_statement_index, candidate) in candidates.iter().enumerate() {
-            if candidate.tenant_key != tenant_key
-                || candidate.received_xapi_version != received_xapi_version
-            {
-                return Err(IngestionError::ReceiptContextMismatch { receipt_number });
-            }
-            if !statement_keys.insert(candidate.statement_key.clone()) {
-                return Err(IngestionError::DuplicateStatementInRequest {
-                    receipt_number,
-                    statement_key: candidate.statement_key.clone(),
-                });
-            }
-
             let key = (
                 candidate.tenant_key.clone(),
                 candidate.statement_key.clone(),
@@ -539,16 +562,16 @@ impl StatementKernel {
                     && existing.content_hash == content_hash
                     && existing.comparison_bytes == candidate.comparison_bytes;
                 if !exact_replay {
-                    self.occurrences.push(StatementOccurrence {
+                    let statement_key = candidate.statement_key.clone();
+                    self.record_batch_rejection_occurrences(
                         receipt_number,
-                        tenant_key: candidate.tenant_key.clone(),
-                        statement_key: candidate.statement_key.clone(),
-                        request_statement_index: request_statement_index as u32,
-                        status: IngestionStatus::Conflict,
-                    });
+                        &tenant_key,
+                        &candidates,
+                        Some(request_statement_index),
+                    );
                     return Err(IngestionError::StatementConflict {
                         receipt_number,
-                        statement_key: candidate.statement_key.clone(),
+                        statement_key,
                     });
                 }
             }
@@ -592,6 +615,29 @@ impl StatementKernel {
             });
         }
         Ok(outcomes)
+    }
+
+    fn record_batch_rejection_occurrences(
+        &mut self,
+        receipt_number: u64,
+        tenant_key: &TenantKey,
+        candidates: &[StatementCandidate],
+        conflict_index: Option<usize>,
+    ) {
+        for (request_statement_index, candidate) in candidates.iter().enumerate() {
+            let status = if conflict_index == Some(request_statement_index) {
+                IngestionStatus::Conflict
+            } else {
+                IngestionStatus::BatchRejected
+            };
+            self.occurrences.push(StatementOccurrence {
+                receipt_number,
+                tenant_key: tenant_key.clone(),
+                statement_key: candidate.statement_key.clone(),
+                request_statement_index: request_statement_index as u32,
+                status,
+            });
+        }
     }
 
     /// Applies one validated Statement item to an existing immutable request receipt.
