@@ -156,6 +156,7 @@ impl StoredStatement {
 pub struct IngestionReceipt {
     receipt_number: u64,
     tenant_key: TenantKey,
+    raw_request_bytes: Vec<u8>,
     request_content_hash: [u8; 32],
     received_xapi_version: XapiVersion,
 }
@@ -171,6 +172,12 @@ impl IngestionReceipt {
     #[must_use]
     pub fn tenant_key(&self) -> &TenantKey {
         &self.tenant_key
+    }
+
+    /// Returns the exact received bytes retained for this request occurrence.
+    #[must_use]
+    pub fn raw_request_bytes(&self) -> &[u8] {
+        &self.raw_request_bytes
     }
 
     /// Returns SHA-256 over the exact received Statement bytes for this occurrence.
@@ -290,7 +297,7 @@ impl IngestionOutcome {
 
     /// Returns the canonical Statement resolved by this occurrence.
     #[must_use]
-    pub const fn statement(&self) -> &StoredStatement {
+    pub fn statement(&self) -> &StoredStatement {
         &self.statement
     }
 }
@@ -368,10 +375,12 @@ impl StatementKernel {
     ) -> Result<IngestionOutcome, IngestionError> {
         self.next_receipt_number = self.next_receipt_number.saturating_add(1);
         let receipt_number = self.next_receipt_number;
-        let request_content_hash = sha256(&candidate.raw_statement_bytes);
+        let raw_request_bytes = candidate.raw_statement_bytes.clone();
+        let request_content_hash = sha256(&raw_request_bytes);
         self.receipts.push(IngestionReceipt {
             receipt_number,
             tenant_key: candidate.tenant_key.clone(),
+            raw_request_bytes,
             request_content_hash,
             received_xapi_version: candidate.received_xapi_version,
         });
@@ -381,7 +390,7 @@ impl StatementKernel {
             candidate.statement_key.clone(),
         );
         let content_hash = sha256(&candidate.comparison_bytes);
-        if let Some(existing) = self.statements.get(&key) {
+        if let Some(existing) = self.statements.get(&key).cloned() {
             let exact_replay = existing.received_xapi_version == candidate.received_xapi_version
                 && existing.statement_comparison_version
                     == comparison_version(candidate.received_xapi_version)
@@ -403,7 +412,7 @@ impl StatementKernel {
                 return Ok(IngestionOutcome {
                     status,
                     receipt_number,
-                    statement: existing.clone(),
+                    statement: existing,
                 });
             }
             return Err(IngestionError::StatementConflict {
