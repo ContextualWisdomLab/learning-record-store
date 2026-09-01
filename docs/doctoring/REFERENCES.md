@@ -7,6 +7,14 @@ Initial standards baseline for implementation and conformance work:
 - Advanced Distributed Learning Initiative. (n.d.). *Experience API specification, version 2.0.* https://github.com/adlnet/xAPI-Spec
 - Aviation Industry CBT Committee. (2016). *cmi5 specification profile for xAPI: Quartz, 1st edition.* https://github.com/AICC/CMI-5_Spec_Current/tree/quartz — compatibility surface based on xAPI 1.0.3.
 
+## Operational security references
+
+- OWASP Foundation. (2026). *Authorization cheat sheet*. OWASP Cheat Sheet Series. https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html — supports least privilege, deny-by-default authorization, checks at the correct boundary, and dedicated authorization tests.
+- PostgreSQL Global Development Group. (2026). *PostgreSQL 18 documentation: System information functions and operators*. https://www.postgresql.org/docs/current/functions-info.html — distinguishes connection-establishing `session_user` from permission-checking `current_user`, including the latter's change under `SECURITY DEFINER`.
+- PostgreSQL Global Development Group. (2026). *PostgreSQL 17 documentation: Row security policies*. https://www.postgresql.org/docs/17/ddl-rowsecurity.html — documents row-security policy application to visible and newly written rows and default-deny behavior when no policy permits access.
+
+ADR 0002 applies these operational sources to the database-principal tenant boundary. They are security-design evidence, not xAPI conformance evidence.
+
 ## Normative-surface evidence registry
 
 | Surface | Normative location | Required executable evidence | Current evidence |
