@@ -344,6 +344,13 @@ pub enum IngestionError {
         /// Zero-based request index already recorded.
         request_statement_index: u32,
     },
+    /// A POST array reused one Statement identifier inside the same request.
+    DuplicateStatementInRequest {
+        /// Immutable request receipt retained for the rejected batch.
+        receipt_number: u64,
+        /// Duplicate Statement identifier.
+        statement_key: String,
+    },
     /// A voiding Statement attempted an impossible self-relation.
     InvalidVoidingRelation {
         /// Statement that attempted to act as the voiding source.
@@ -390,6 +397,13 @@ impl Display for IngestionError {
                 formatter,
                 "request occurrence already recorded: receipt {receipt_number}, index {request_statement_index}"
             ),
+            Self::DuplicateStatementInRequest {
+                receipt_number,
+                statement_key,
+            } => write!(
+                formatter,
+                "duplicate statement {statement_key} in request receipt {receipt_number}"
+            ),
             Self::InvalidVoidingRelation {
                 voiding_statement_key,
                 voided_statement_key,
@@ -428,8 +442,9 @@ pub struct StatementKernel {
 impl StatementKernel {
     /// Creates one immutable receipt for the exact bytes of an ingestion request.
     ///
-    /// A single receipt may own multiple zero-based Statement occurrences for a POST array. The
-    /// caller must complete version-specific batch validation before invoking item ingestion.
+    /// A single receipt may own multiple zero-based Statement occurrences for a POST array. Batch
+    /// callers should use [`StatementKernel::ingest_batch`] so conflict or duplicate detection
+    /// happens before canonical Statement state changes.
     pub fn begin_request(
         &mut self,
         tenant_key: TenantKey,
@@ -457,8 +472,8 @@ impl StatementKernel {
     /// Accepts a single-Statement request, reuses an exact replay, or rejects a conflict.
     ///
     /// This convenience path records the Statement bytes as the complete request body at index
-    /// zero. Batch callers use [`StatementKernel::begin_request`] once and then
-    /// [`StatementKernel::ingest_at_receipt`] for each validated item.
+    /// zero. POST arrays use [`StatementKernel::ingest_batch`] instead of committing items one at a
+    /// time.
     pub fn ingest(
         &mut self,
         candidate: StatementCandidate,
@@ -471,11 +486,120 @@ impl StatementKernel {
         self.ingest_at_receipt(receipt_number, 0, candidate)
     }
 
+    /// Applies a validated POST array without partially accepting canonical Statement identities.
+    ///
+    /// The exact request receipt is retained first. Tenant/version mismatch, a duplicate Statement
+    /// identifier inside the request, or a conflict with canonical evidence is then discovered by
+    /// a read-only preflight before any new `StoredStatement` is inserted. A conflicting item keeps
+    /// its occurrence evidence while the rest of the batch makes no canonical changes. Once the
+    /// preflight succeeds, applying every item is infallible in this single-threaded reference
+    /// kernel and all outcomes share the same request receipt.
+    pub fn ingest_batch(
+        &mut self,
+        tenant_key: TenantKey,
+        received_xapi_version: XapiVersion,
+        raw_request_bytes: Vec<u8>,
+        candidates: Vec<StatementCandidate>,
+    ) -> Result<Vec<IngestionOutcome>, IngestionError> {
+        if candidates.is_empty() {
+            return Err(IngestionError::InvalidEvidence {
+                field: "statement_batch",
+            });
+        }
+        let receipt_number = self.begin_request(
+            tenant_key.clone(),
+            received_xapi_version,
+            raw_request_bytes,
+        )?;
+        let mut statement_keys = BTreeSet::new();
+
+        for (request_statement_index, candidate) in candidates.iter().enumerate() {
+            if candidate.tenant_key != tenant_key
+                || candidate.received_xapi_version != received_xapi_version
+            {
+                return Err(IngestionError::ReceiptContextMismatch { receipt_number });
+            }
+            if !statement_keys.insert(candidate.statement_key.clone()) {
+                return Err(IngestionError::DuplicateStatementInRequest {
+                    receipt_number,
+                    statement_key: candidate.statement_key.clone(),
+                });
+            }
+
+            let key = (
+                candidate.tenant_key.clone(),
+                candidate.statement_key.clone(),
+            );
+            let content_hash = sha256(&candidate.comparison_bytes);
+            if let Some(existing) = self.statements.get(&key) {
+                let exact_replay = existing.received_xapi_version
+                    == candidate.received_xapi_version
+                    && existing.statement_comparison_version
+                        == comparison_version(candidate.received_xapi_version)
+                    && existing.content_hash == content_hash
+                    && existing.comparison_bytes == candidate.comparison_bytes;
+                if !exact_replay {
+                    self.occurrences.push(StatementOccurrence {
+                        receipt_number,
+                        tenant_key: candidate.tenant_key.clone(),
+                        statement_key: candidate.statement_key.clone(),
+                        request_statement_index: request_statement_index as u32,
+                        status: IngestionStatus::Conflict,
+                    });
+                    return Err(IngestionError::StatementConflict {
+                        receipt_number,
+                        statement_key: candidate.statement_key.clone(),
+                    });
+                }
+            }
+        }
+
+        let mut outcomes = Vec::with_capacity(candidates.len());
+        for (request_statement_index, candidate) in candidates.into_iter().enumerate() {
+            let key = (
+                candidate.tenant_key.clone(),
+                candidate.statement_key.clone(),
+            );
+            let content_hash = sha256(&candidate.comparison_bytes);
+            let (status, statement) = if let Some(existing) = self.statements.get(&key).cloned() {
+                (IngestionStatus::Replayed, existing)
+            } else {
+                let statement = StoredStatement {
+                    tenant_key: candidate.tenant_key.clone(),
+                    statement_key: candidate.statement_key.clone(),
+                    received_xapi_version: candidate.received_xapi_version,
+                    statement_comparison_version: comparison_version(
+                        candidate.received_xapi_version,
+                    ),
+                    content_hash,
+                    comparison_bytes: candidate.comparison_bytes,
+                    raw_statement_bytes: candidate.raw_statement_bytes,
+                };
+                self.statements.insert(key, statement.clone());
+                (IngestionStatus::Accepted, statement)
+            };
+            self.occurrences.push(StatementOccurrence {
+                receipt_number,
+                tenant_key: candidate.tenant_key,
+                statement_key: candidate.statement_key,
+                request_statement_index: request_statement_index as u32,
+                status,
+            });
+            outcomes.push(IngestionOutcome {
+                status,
+                receipt_number,
+                statement,
+            });
+        }
+        Ok(outcomes)
+    }
+
     /// Applies one validated Statement item to an existing immutable request receipt.
     ///
-    /// Receipt tenant/version context and the `(receipt_number, request_statement_index)` identity
-    /// are checked before canonical Statement state changes. Conflicts still append an immutable
-    /// occurrence so rejected evidence remains auditable.
+    /// This is the low-level single-item primitive used by `ingest`. Receipt tenant/version context
+    /// and the `(receipt_number, request_statement_index)` identity are checked before canonical
+    /// Statement state changes. Callers must not build a POST-array transaction by invoking this
+    /// method repeatedly; use [`StatementKernel::ingest_batch`] for atomic batch behavior.
     pub fn ingest_at_receipt(
         &mut self,
         receipt_number: u64,
