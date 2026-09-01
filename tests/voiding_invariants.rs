@@ -33,6 +33,10 @@ fn self_voiding_is_rejected_before_persistence() {
         error,
         IngestionError::InvalidVoidingRelation { .. }
     ));
+    assert_eq!(
+        error.to_string(),
+        "invalid voiding relation: statement-voiding cannot void statement-voiding"
+    );
     assert!(kernel.voiding_relations().is_empty());
 }
 
@@ -59,6 +63,10 @@ fn one_voiding_statement_cannot_acquire_multiple_targets() {
         error,
         IngestionError::VoidingTargetConflict { .. }
     ));
+    assert_eq!(
+        error.to_string(),
+        "voiding target conflict for statement-voiding: existing target statement-target-a, attempted target statement-target-b"
+    );
     let relations = kernel.voiding_relations();
     assert_eq!(relations.len(), 1);
     assert_eq!(relations[0].voiding_statement_key(), "statement-voiding");
