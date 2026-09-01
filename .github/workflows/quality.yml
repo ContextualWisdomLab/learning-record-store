@@ -16,6 +16,20 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: learning_record_store
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d learning_record_store"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -39,6 +53,8 @@ jobs:
               Path("rust-toolchain.toml"),
               Path("src/lib.rs"),
               Path("tests/ingestion_kernel.rs"),
+              Path("tests/voiding_invariants.rs"),
+              Path("tests/postgres_evidence.sh"),
               Path("migrations/0001_statement_evidence.sql"),
               Path("docs/PRD.md"),
               Path("docs/TRD.md"),
@@ -108,6 +124,8 @@ jobs:
               "CREATE TABLE statement_ingestion_item",
               "CREATE TABLE voiding_relation",
               "PRIMARY KEY (tenant_key, statement_key)",
+              "PRIMARY KEY (tenant_key, voiding_statement_key)",
+              "resolved_statement_key = submitted_statement_key",
               "FOREIGN KEY (tenant_key, receipt_number)",
               "FORCE ROW LEVEL SECURITY",
               "current_setting('app.tenant_key', true)",
@@ -128,6 +146,15 @@ jobs:
                       raise SystemExit(f"unresolved bootstrap marker {marker!r} in {path}")
 
           print("learning record store product contract validation passed")
+
+      - name: Exercise PostgreSQL tenant and immutability invariants
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_evidence.sh
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
