@@ -22,6 +22,10 @@ Statement replay equality follows the Statement Comparison Requirements of the r
 
 Tenant-scoped persistence evidence must prove that every tenant-owned relation carries tenant identity through composite keys and that cross-tenant reads and references fail closed under the deployed database authorization model. Statement history and compatibility source evidence remain immutable; document-resource current-state semantics are implemented separately from their audit/revision evidence.
 
+## Repository-policy implementation evidence
+
+The PostgreSQL persistence slice is repository-policy evidence, not xAPI conformance evidence. `migrations/0001_statement_evidence.sql` defines `persist_statement_occurrence` to retain the immutable request receipt, resolve one `(tenant_key, statement_key)` through the canonical primary-key conflict path, compare received-version/comparison evidence, and retain an `accepted`, `replayed`, or `conflict` occurrence in the same transaction. `tests/postgres_atomic_ingestion.sh` specifies real-PostgreSQL identical-writer and competing-content races, cross-tenant rejection, canonical non-overwrite, and conflict audit retention under the application-equivalent role. These paths may be cited as implementation evidence only after the exact PR head passes the corresponding hosted quality workflow. They do not change the `Not implemented` conformance maturity above because the version-specific parser, REST behavior, attachments, document resources, and independent xAPI/cmi5 conformance suites are still absent.
+
 ## APA 7 references
 
 Advanced Distributed Learning Initiative. (n.d.). *Experience API specification* (Part 2, §§2.2-2.3.1; Part 3, Statement Resource). https://github.com/adlnet/xAPI-Spec
