@@ -124,6 +124,130 @@ SQL
   exit 1
 }
 
+receipt_number="$({ app_psql -At <<'SQL'
+SET app.tenant_key = 'tenant-alpha';
+INSERT INTO ingestion_receipt (
+    tenant_key,
+    received_xapi_version,
+    raw_request_bytes,
+    request_content_hash
+) VALUES (
+    'tenant-alpha',
+    '2.0',
+    convert_to('{"id":"statement-001"}', 'UTF8'),
+    decode(repeat('44', 32), 'hex')
+);
+SELECT max(receipt_number) FROM ingestion_receipt;
+SQL
+} | tail -n 1)"
+
+if app_psql -v receipt_number="$receipt_number" <<'SQL'
+SET app.tenant_key = 'tenant-alpha';
+INSERT INTO statement_ingestion_item (
+    tenant_key,
+    receipt_number,
+    request_statement_index,
+    submitted_statement_key,
+    comparison_outcome,
+    resolved_statement_key
+) VALUES (
+    'tenant-alpha',
+    :'receipt_number'::bigint,
+    0,
+    'statement-wrong-key',
+    'accepted',
+    'statement-001'
+);
+SQL
+then
+  echo "accepted occurrence resolved to a different Statement key" >&2
+  exit 1
+fi
+
+app_psql -v ON_ERROR_STOP=1 <<'SQL'
+SET app.tenant_key = 'tenant-alpha';
+INSERT INTO statement_record (
+    tenant_key,
+    statement_key,
+    received_xapi_version,
+    statement_comparison_version,
+    content_hash,
+    comparison_bytes,
+    raw_statement_bytes
+) VALUES
+(
+    'tenant-alpha',
+    'statement-voiding',
+    '2.0',
+    'xapi-2.0-statement-comparison/v1',
+    decode(repeat('55', 32), 'hex'),
+    decode('dd', 'hex'),
+    convert_to('{"id":"statement-voiding"}', 'UTF8')
+),
+(
+    'tenant-alpha',
+    'statement-target-a',
+    '2.0',
+    'xapi-2.0-statement-comparison/v1',
+    decode(repeat('66', 32), 'hex'),
+    decode('ee', 'hex'),
+    convert_to('{"id":"statement-target-a"}', 'UTF8')
+),
+(
+    'tenant-alpha',
+    'statement-target-b',
+    '2.0',
+    'xapi-2.0-statement-comparison/v1',
+    decode(repeat('77', 32), 'hex'),
+    decode('ff', 'hex'),
+    convert_to('{"id":"statement-target-b"}', 'UTF8')
+);
+
+INSERT INTO voiding_relation (
+    tenant_key,
+    voiding_statement_key,
+    voided_statement_key
+) VALUES (
+    'tenant-alpha',
+    'statement-voiding',
+    'statement-target-a'
+);
+SQL
+
+if app_psql <<'SQL'
+SET app.tenant_key = 'tenant-alpha';
+INSERT INTO voiding_relation (
+    tenant_key,
+    voiding_statement_key,
+    voided_statement_key
+) VALUES (
+    'tenant-alpha',
+    'statement-voiding',
+    'statement-target-b'
+);
+SQL
+then
+  echo "one voiding Statement unexpectedly acquired multiple targets" >&2
+  exit 1
+fi
+
+if app_psql <<'SQL'
+SET app.tenant_key = 'tenant-alpha';
+INSERT INTO voiding_relation (
+    tenant_key,
+    voiding_statement_key,
+    voided_statement_key
+) VALUES (
+    'tenant-alpha',
+    'statement-target-b',
+    'statement-target-b'
+);
+SQL
+then
+  echo "self-voiding relation unexpectedly succeeded" >&2
+  exit 1
+fi
+
 psql -v ON_ERROR_STOP=1 <<'SQL'
 SELECT
     c.relname AS relation_name,
