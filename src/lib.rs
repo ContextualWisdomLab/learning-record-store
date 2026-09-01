@@ -493,9 +493,9 @@ impl StatementKernel {
     /// The exact request receipt is retained first. Tenant/version mismatch and duplicate identity
     /// checks run before canonical replay/conflict comparison so request-level failures have stable
     /// precedence. Any rejected batch records one immutable occurrence for every submitted index;
-    /// only the item that conflicts with stored evidence is marked `Conflict`, while its siblings
-    /// are `BatchRejected`. Canonical Statement state changes only after the full read-only preflight
-    /// succeeds, and all successful outcomes share the same request receipt.
+    /// every item that conflicts with stored evidence is marked `Conflict`, while non-conflicting
+    /// siblings are `BatchRejected`. Canonical Statement state changes only after the complete
+    /// read-only preflight succeeds, and all successful outcomes share the same request receipt.
     pub fn ingest_batch(
         &mut self,
         tenant_key: TenantKey,
@@ -522,7 +522,7 @@ impl StatementKernel {
                 receipt_number,
                 &tenant_key,
                 &candidates,
-                None,
+                &BTreeSet::new(),
             );
             return Err(IngestionError::ReceiptContextMismatch { receipt_number });
         }
@@ -540,7 +540,7 @@ impl StatementKernel {
                 receipt_number,
                 &tenant_key,
                 &candidates,
-                None,
+                &BTreeSet::new(),
             );
             return Err(IngestionError::DuplicateStatementInRequest {
                 receipt_number,
@@ -548,6 +548,8 @@ impl StatementKernel {
             });
         }
 
+        let mut conflict_indices = BTreeSet::new();
+        let mut first_conflict_statement_key = None;
         for (request_statement_index, candidate) in candidates.iter().enumerate() {
             let key = (
                 candidate.tenant_key.clone(),
@@ -562,19 +564,24 @@ impl StatementKernel {
                     && existing.content_hash == content_hash
                     && existing.comparison_bytes == candidate.comparison_bytes;
                 if !exact_replay {
-                    let statement_key = candidate.statement_key.clone();
-                    self.record_batch_rejection_occurrences(
-                        receipt_number,
-                        &tenant_key,
-                        &candidates,
-                        Some(request_statement_index),
-                    );
-                    return Err(IngestionError::StatementConflict {
-                        receipt_number,
-                        statement_key,
-                    });
+                    conflict_indices.insert(request_statement_index);
+                    if first_conflict_statement_key.is_none() {
+                        first_conflict_statement_key = Some(candidate.statement_key.clone());
+                    }
                 }
             }
+        }
+        if let Some(statement_key) = first_conflict_statement_key {
+            self.record_batch_rejection_occurrences(
+                receipt_number,
+                &tenant_key,
+                &candidates,
+                &conflict_indices,
+            );
+            return Err(IngestionError::StatementConflict {
+                receipt_number,
+                statement_key,
+            });
         }
 
         let mut outcomes = Vec::with_capacity(candidates.len());
@@ -622,10 +629,10 @@ impl StatementKernel {
         receipt_number: u64,
         tenant_key: &TenantKey,
         candidates: &[StatementCandidate],
-        conflict_index: Option<usize>,
+        conflict_indices: &BTreeSet<usize>,
     ) {
         for (request_statement_index, candidate) in candidates.iter().enumerate() {
-            let status = if conflict_index == Some(request_statement_index) {
+            let status = if conflict_indices.contains(&request_statement_index) {
                 IngestionStatus::Conflict
             } else {
                 IngestionStatus::BatchRejected
