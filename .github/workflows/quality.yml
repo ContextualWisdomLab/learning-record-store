@@ -2,7 +2,6 @@ name: Learning Record Store Quality
 
 on:
   pull_request:
-    branches: [develop, main]
   push:
     branches: [develop, main]
 
@@ -16,17 +15,19 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Validate bootstrap contract
+
+      - name: Validate product and persistence contract
         shell: python3 {0}
         run: |
           import json
+          import re
           from pathlib import Path
 
           required = [
@@ -34,15 +35,23 @@ jobs:
               Path("AGENTS.md"),
               Path("CLAUDE.md"),
               Path("CHANGELOG.md"),
+              Path("Cargo.toml"),
+              Path("rust-toolchain.toml"),
+              Path("src/lib.rs"),
+              Path("tests/ingestion_kernel.rs"),
+              Path("migrations/0001_statement_evidence.sql"),
+              Path("docs/PRD.md"),
+              Path("docs/TRD.md"),
               Path("docs/ARCHITECTURE.md"),
               Path("docs/DATA_MODEL.md"),
               Path("docs/adr/0001-lrs-authority-boundary.md"),
               Path("docs/doctoring/REFERENCES.md"),
               Path("docs/doctoring/STANDARD_TRACEABILITY.md"),
+              Path("docs/product-technical-gap-baseline.md"),
           ]
           missing = [str(path) for path in required if not path.is_file()]
           if missing:
-              raise SystemExit(f"missing required bootstrap files: {missing}")
+              raise SystemExit(f"missing required product files: {missing}")
 
           data_model = Path("docs/DATA_MODEL.md").read_text(encoding="utf-8")
           start_marker = "<!-- lrs-bootstrap-contract:start -->"
@@ -91,6 +100,26 @@ jobs:
                   + json.dumps(contract, indent=2, sort_keys=True)
               )
 
+          sql = Path("migrations/0001_statement_evidence.sql").read_text(encoding="utf-8")
+          required_sql = (
+              "CREATE TABLE tenant_partition",
+              "CREATE TABLE ingestion_receipt",
+              "CREATE TABLE statement_record",
+              "CREATE TABLE statement_ingestion_item",
+              "CREATE TABLE voiding_relation",
+              "PRIMARY KEY (tenant_key, statement_key)",
+              "FOREIGN KEY (tenant_key, receipt_number)",
+              "FORCE ROW LEVEL SECURITY",
+              "current_setting('app.tenant_key', true)",
+              "raw_request_bytes bytea",
+              "raw_statement_bytes bytea",
+          )
+          for required_fragment in required_sql:
+              if required_fragment not in sql:
+                  raise SystemExit(f"missing persistence contract: {required_fragment}")
+          if re.search(r"\b(?:CREATE TABLE|CREATE INDEX|CREATE SCHEMA)\s+id\b", sql, re.IGNORECASE):
+              raise SystemExit("standalone generic persistence object name 'id' is forbidden")
+
           forbidden = ("TODO: replace", "TBD: replace", "PLACEHOLDER_REPLACE")
           for path in required:
               text = path.read_text(encoding="utf-8")
@@ -98,4 +127,30 @@ jobs:
                   if marker in text:
                       raise SystemExit(f"unresolved bootstrap marker {marker!r} in {path}")
 
-          print("learning record store bootstrap contract validation passed")
+          print("learning record store product contract validation passed")
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Test all targets
+        run: cargo test --all-targets
+
+      - name: Lint production and tests
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Build public documentation without warnings
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --no-deps
+
+      - name: Install pinned line-coverage tool
+        run: cargo install cargo-llvm-cov --version 0.8.6 --locked
+
+      - name: Enforce complete line coverage
+        run: cargo llvm-cov --all-targets --fail-under-lines 100 --show-missing-lines
