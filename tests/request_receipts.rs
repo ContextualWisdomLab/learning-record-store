@@ -42,7 +42,9 @@ fn one_request_receipt_can_own_multiple_indexed_statement_occurrences() {
         .expect("second batch item accepted");
 
     assert_eq!(first.status(), IngestionStatus::Accepted);
+    assert_eq!(first.receipt_number(), receipt_number);
     assert_eq!(second.status(), IngestionStatus::Accepted);
+    assert_eq!(second.receipt_number(), receipt_number);
     assert_eq!(kernel.receipts().len(), 1);
     assert_eq!(kernel.receipts()[0].raw_request_bytes(), raw_request);
     assert_eq!(kernel.occurrences().len(), 2);
@@ -50,6 +52,20 @@ fn one_request_receipt_can_own_multiple_indexed_statement_occurrences() {
     assert_eq!(kernel.occurrences()[0].request_statement_index(), 0);
     assert_eq!(kernel.occurrences()[1].receipt_number(), receipt_number);
     assert_eq!(kernel.occurrences()[1].request_statement_index(), 1);
+}
+
+#[test]
+fn empty_request_receipt_evidence_is_rejected() {
+    let mut kernel = StatementKernel::default();
+    let error = kernel
+        .begin_request(
+            TenantKey::new("tenant-alpha").expect("tenant key"),
+            XapiVersion::V2_0,
+            Vec::new(),
+        )
+        .expect_err("empty request evidence rejected");
+    assert_eq!(error.to_string(), "invalid evidence: raw_request_bytes");
+    assert!(kernel.receipts().is_empty());
 }
 
 #[test]
@@ -77,7 +93,11 @@ fn receipt_context_mismatch_fails_before_canonical_state_changes() {
         .ingest_at_receipt(
             receipt_number,
             0,
-            candidate(&TenantKey::new("tenant-alpha").unwrap(), "statement-alpha", XapiVersion::V1_0_3),
+            candidate(
+                &TenantKey::new("tenant-alpha").unwrap(),
+                "statement-alpha",
+                XapiVersion::V1_0_3,
+            ),
         )
         .expect_err("cross-version receipt use rejected");
     assert!(matches!(
