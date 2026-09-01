@@ -10,7 +10,7 @@ export PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD
 
 psql -v ON_ERROR_STOP=1 <<'SQL'
 GRANT EXECUTE ON FUNCTION persist_statement_occurrence(
-    text, text, bytea, bytea, integer, text, text, bytea, bytea, bytea
+    text, text, bytea, integer, text, text, bytea, bytea
 ) TO lrs_app;
 SQL
 
@@ -25,11 +25,9 @@ FROM persist_statement_occurrence(
     'tenant-alpha',
     '2.0',
     convert_to('{"id":"statement-atomic"}', 'UTF8'),
-    decode(repeat('81', 32), 'hex'),
     0,
     'statement-atomic',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('82', 32), 'hex'),
     convert_to('{"id":"statement-atomic"}', 'UTF8'),
     convert_to('{"id":"statement-atomic"}', 'UTF8')
 );
@@ -47,11 +45,9 @@ FROM persist_statement_occurrence(
     'tenant-alpha',
     '2.0',
     convert_to('{ "id" : "statement-atomic" }', 'UTF8'),
-    decode(repeat('83', 32), 'hex'),
     0,
     'statement-atomic',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('82', 32), 'hex'),
     convert_to('{"id":"statement-atomic"}', 'UTF8'),
     convert_to('{ "id" : "statement-atomic" }', 'UTF8')
 );
@@ -69,11 +65,9 @@ FROM persist_statement_occurrence(
     'tenant-alpha',
     '2.0',
     convert_to('{"id":"statement-atomic","conflict":true}', 'UTF8'),
-    decode(repeat('84', 32), 'hex'),
     0,
     'statement-atomic',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('85', 32), 'hex'),
     convert_to('{"id":"statement-atomic","conflict":true}', 'UTF8'),
     convert_to('{"id":"statement-atomic","conflict":true}', 'UTF8')
 );
@@ -91,11 +85,9 @@ FROM persist_statement_occurrence(
     'tenant-alpha',
     '1.0.3',
     convert_to('{"id":"statement-atomic"}', 'UTF8'),
-    decode(repeat('86', 32), 'hex'),
     0,
     'statement-atomic',
     'xapi-1.0.3-statement-comparison/v1',
-    decode(repeat('82', 32), 'hex'),
     convert_to('{"id":"statement-atomic"}', 'UTF8'),
     convert_to('{"id":"statement-atomic"}', 'UTF8')
 );
@@ -106,15 +98,27 @@ SQL
   exit 1
 }
 
-canonical_hash="$({ app_psql -At <<'SQL'
+canonical_hash_matches="$({ app_psql -At <<'SQL'
 SET app.tenant_key = 'tenant-alpha';
-SELECT encode(content_hash, 'hex')
+SELECT content_hash = sha256(comparison_bytes)
 FROM statement_record
 WHERE tenant_key = 'tenant-alpha' AND statement_key = 'statement-atomic';
 SQL
 } | tail -n 1)"
-[[ "$canonical_hash" == "$(printf '82%.0s' {1..32})" ]] || {
-  echo "conflict overwrote canonical statement evidence" >&2
+[[ "$canonical_hash_matches" == "t" ]] || {
+  echo "canonical content hash was not derived from retained comparison bytes" >&2
+  exit 1
+}
+
+receipt_hash_mismatch_count="$({ app_psql -At <<'SQL'
+SET app.tenant_key = 'tenant-alpha';
+SELECT count(*)
+FROM ingestion_receipt
+WHERE request_content_hash <> sha256(raw_request_bytes);
+SQL
+} | tail -n 1)"
+[[ "$receipt_hash_mismatch_count" == "0" ]] || {
+  echo "request digest does not match immutable request bytes" >&2
   exit 1
 }
 
@@ -139,11 +143,9 @@ FROM persist_statement_occurrence(
     'tenant-beta',
     '2.0',
     convert_to('{"id":"statement-cross-scope"}', 'UTF8'),
-    decode(repeat('87', 32), 'hex'),
     0,
     'statement-cross-scope',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('88', 32), 'hex'),
     convert_to('{"id":"statement-cross-scope"}', 'UTF8'),
     convert_to('{"id":"statement-cross-scope"}', 'UTF8')
 );
@@ -157,7 +159,7 @@ work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 
 run_concurrent_ingest() {
-  local receipt_hash="$1"
+  local request_variant="$1"
   local output_file="$2"
   PGUSER=lrs_app PGPASSWORD=lrs-app-test psql -v ON_ERROR_STOP=1 -At >"$output_file" <<SQL
 SET app.tenant_key = 'tenant-alpha';
@@ -165,21 +167,19 @@ SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-alpha',
     '2.0',
-    convert_to('{"id":"statement-concurrent"}', 'UTF8'),
-    decode(repeat('${receipt_hash}', 32), 'hex'),
+    convert_to('{"id":"statement-concurrent","request":"${request_variant}"}', 'UTF8'),
     0,
     'statement-concurrent',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('91', 32), 'hex'),
     convert_to('{"id":"statement-concurrent"}', 'UTF8'),
     convert_to('{"id":"statement-concurrent"}', 'UTF8')
 );
 SQL
 }
 
-run_concurrent_ingest 92 "$work_dir/first.out" &
+run_concurrent_ingest first "$work_dir/first.out" &
 first_pid=$!
-run_concurrent_ingest 93 "$work_dir/second.out" &
+run_concurrent_ingest second "$work_dir/second.out" &
 second_pid=$!
 wait "$first_pid"
 wait "$second_pid"
@@ -215,31 +215,28 @@ SQL
 }
 
 run_concurrent_conflict() {
-  local receipt_hash="$1"
-  local content_hash="$2"
-  local variant="$3"
-  local output_file="$4"
+  local request_variant="$1"
+  local comparison_variant="$2"
+  local output_file="$3"
   PGUSER=lrs_app PGPASSWORD=lrs-app-test psql -v ON_ERROR_STOP=1 -At >"$output_file" <<SQL
 SET app.tenant_key = 'tenant-alpha';
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-alpha',
     '2.0',
-    convert_to('{"id":"statement-race-conflict","variant":"${variant}"}', 'UTF8'),
-    decode(repeat('${receipt_hash}', 32), 'hex'),
+    convert_to('{"id":"statement-race-conflict","request":"${request_variant}"}', 'UTF8'),
     0,
     'statement-race-conflict',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('${content_hash}', 32), 'hex'),
-    convert_to('{"id":"statement-race-conflict","variant":"${variant}"}', 'UTF8'),
-    convert_to('{"id":"statement-race-conflict","variant":"${variant}"}', 'UTF8')
+    convert_to('{"id":"statement-race-conflict","variant":"${comparison_variant}"}', 'UTF8'),
+    convert_to('{"id":"statement-race-conflict","variant":"${comparison_variant}"}', 'UTF8')
 );
 SQL
 }
 
-run_concurrent_conflict 94 a1 first "$work_dir/conflict-first.out" &
+run_concurrent_conflict first first "$work_dir/conflict-first.out" &
 conflict_first_pid=$!
-run_concurrent_conflict 95 b1 second "$work_dir/conflict-second.out" &
+run_concurrent_conflict second second "$work_dir/conflict-second.out" &
 conflict_second_pid=$!
 wait "$conflict_first_pid"
 wait "$conflict_second_pid"
