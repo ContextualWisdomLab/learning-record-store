@@ -2,7 +2,7 @@
 
 Last reconciled: 2026-09-01
 
-This ledger records the current commercialization gap for the ContextualWisdomLab Learning Record Store from repository guidance, architecture/data-model decisions, standards traceability, review findings, and exact-head GitHub evidence. It does not claim runtime implementation or standards conformance that does not yet exist.
+This ledger records the current commercialization gap for the ContextualWisdomLab Learning Record Store from repository guidance, architecture/data-model decisions, standards traceability, review findings, and exact-head GitHub evidence. It does not claim runtime implementation or standards conformance that does not yet exist. Live GitHub Check state is intentionally not persisted as `queued`/`running`/`passed` here because that state changes outside the repository; the merge gate always reads the current PR head and live required Checks.
 
 ## Product responsibility
 
@@ -20,8 +20,8 @@ The Learning Record Store is the authoritative persistence boundary for xAPI sta
 | Document resources | `document_store` with current state plus immutable revision evidence | Defined | State/Agent Profile/Activity Profile CRUD and conditional semantics absent | Implement version-specific document-resource tests separately from Statement immutability |
 | Attachments | `attachment_blob` content-addressed storage + `statement_attachment` relation | Defined | No blob persistence, integrity, malicious-content non-execution, or dedup evidence | Implement immutable bytes/digest/media type/length/locator checks and authorization tests |
 | Compatibility provenance | `compatibility_adapter`, `compatibility_transform`, `compatibility_artifact` | Defined | Transformation implementation and reproducibility evidence absent | Prove deterministic conversion, source preservation, target version, converter version, output digest, validation and provenance reference |
-| Standards traceability | IEEE 9274.1.1-2023, ISO/IEC/IEEE 39274-1-1:2025, ADL xAPI 1.0.3, cmi5 Quartz | Documented | No exact-head executable conformance evidence yet | Attach requirement-level test paths and exact-head receipts as implementation lands |
-| CI/security | Exact-head bootstrap validation, Security Scan, SAST | Partial | Current-head runs are queued and therefore not merge evidence | Require all protected exact-head checks before merge |
+| Standards traceability | IEEE 9274.1.1-2023, ISO/IEC/IEEE 39274-1-1:2025, ADL xAPI 1.0.3, cmi5 Quartz | Documented | No executable conformance evidence yet | Attach requirement-level test paths and exact-head receipts as implementation lands |
+| CI/security merge gate | Exact-head bootstrap validation, Security Scan, SAST | Live external gate | A committed status would immediately become stale; predecessor-head success is never merge evidence | At merge time, re-fetch the current PR head and require all protected exact-head Checks/reviews to be successful |
 | Test/documentation quality | Bootstrap validation guards machine-readable architecture contract | Partial | Runtime statement/branch/docstring/edge-case coverage does not exist because runtime is not implemented | Require 100% coverage for each production slice introduced |
 
 ## DDD/context map
@@ -44,7 +44,7 @@ Hot-partition and lock behavior must be measured when persistence exists. Concur
 
 ## Active gap order
 
-1. Merge bootstrap PR #1 only after current-head quality/security/SAST checks complete successfully.
+1. Merge bootstrap PR #1 only after live current-head quality/security/SAST checks and review gates complete successfully.
 2. Implement the minimal Rust-first persistence/protocol core needed to enforce statement identity, tenant isolation, request provenance and version-aware replay comparison.
 3. Add executable xAPI 2.0 Statement and document-resource conformance evidence.
 4. Add the explicit xAPI 1.0.3/cmi5 compatibility adapter with deterministic provenance artifacts and separate conformance fixtures.
