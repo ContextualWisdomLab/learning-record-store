@@ -2,51 +2,54 @@
 
 Last reconciled: 2026-09-01
 
-This ledger records the current commercialization gap for the ContextualWisdomLab Learning Record Store from repository guidance, architecture/data-model decisions, standards traceability, review findings, and exact-head GitHub evidence. It does not claim runtime implementation or standards conformance that does not yet exist. Live GitHub Check state is intentionally not persisted as `queued`/`running`/`passed` here because that state changes outside the repository; the merge gate always reads the current PR head and live required Checks.
+This ledger records commercialization state from live product guidance, architecture/data-model decisions, implementation, issue/PR evidence, standards traceability, and exact-head GitHub verification. Mutable check/review state is never frozen as a success claim in this file; merge decisions must re-fetch the current PR head and live gates.
 
 ## Product responsibility
 
-The Learning Record Store is the authoritative persistence boundary for xAPI statements, xAPI document resources, attachments, and their integrity/provenance metadata. It does not own enrollment, completion policy, authored content, psychometric responses, or billing state.
+The Learning Record Store is the authoritative persistence boundary for xAPI statements, xAPI document resources, attachments, and their integrity/provenance evidence. It does not own enrollment, completion policy, authored content, psychometric responses, billing state, or downstream product workflow truth.
 
-## Current exact-head baseline
+## Feature specification
 
-| Area | Evidence | Status | Commercialization gap | Next verification |
+The first executable feature is immutable tenant-scoped Statement ingestion. `statement_validation` supplies received-version-aware comparison bytes; `StatementKernel` decides first acceptance, exact replay, or conflict for `(tenant_key, statement_key)`; every attempt retains exact request evidence; compatibility-version changes cannot silently mutate canonical evidence; and voiding is relational rather than destructive. `migrations/0001_statement_evidence.sql` establishes the first 3NF persistence schema and forced tenant RLS, while the production PostgreSQL transaction adapter remains a separate unfinished layer.
+
+## Current implementation and exact-head status
+
+The active implementation is stacked on bootstrap PR #1 in branch `agent/xapi-ingestion-kernel`. The most recent runtime behavior commit is `8b7a5c8cc19447bc4eea5bb56de3c318e8c491d6`; subsequent commits add schema, requirements, quality gates, data-model reconciliation, and changelog evidence. The branch head changes when this ledger is committed, so its merge status must be resolved from the pull request's live `head.sha`, not a self-referential SHA stored here.
+
+| Area | Evidence | Current state | Remaining commercialization gap | Next verification |
 | --- | --- | --- | --- | --- |
-| Authority boundary | ADR 0001, README, ARCHITECTURE | Defined | Runtime modules do not yet exist | Merge bootstrap, then implement protocol/persistence slices behind the documented boundary |
-| Canonical protocol | xAPI 2.0 canonical; cmi5 Quartz/xAPI 1.0.3 explicit compatibility surface | Defined | No executable protocol negotiation or conformance suite | Implement independent canonical and compatibility conformance paths |
-| Statement identity | `(tenant_id, statement_id)` canonical identity; version-aware comparison; immutable request receipts | Defined | No transactional persistence implementation yet | Prove atomic exact-retry reuse and conflicting-replay rejection under concurrency |
-| Request provenance | `ingestion_receipt` + `statement_ingestion_item` | Defined | No storage migration or replay implementation | Preserve every request occurrence, including idempotent retries and rejected conflict evidence |
-| Tenant isolation | Composite tenant references and fail-closed RLS/equivalent policy | Defined | No deployed DB constraints or adversarial tenant tests | Implement schema/migrations and cross-tenant negative tests at the database boundary |
-| Document resources | `document_store` with current state plus immutable revision evidence | Defined | State/Agent Profile/Activity Profile CRUD and conditional semantics absent | Implement version-specific document-resource tests separately from Statement immutability |
-| Attachments | `attachment_blob` content-addressed storage + `statement_attachment` relation | Defined | No blob persistence, integrity, malicious-content non-execution, or dedup evidence | Implement immutable bytes/digest/media type/length/locator checks and authorization tests |
-| Compatibility provenance | `compatibility_adapter`, `compatibility_transform`, `compatibility_artifact` | Defined | Transformation implementation and reproducibility evidence absent | Prove deterministic conversion, source preservation, target version, converter version, output digest, validation and provenance reference |
-| Standards traceability | IEEE 9274.1.1-2023, ISO/IEC/IEEE 39274-1-1:2025, ADL xAPI 1.0.3, cmi5 Quartz | Documented | No executable conformance evidence yet | Attach requirement-level test paths and exact-head receipts as implementation lands |
-| CI/security merge gate | Exact-head bootstrap validation, Security Scan, SAST | Live external gate | A committed status would immediately become stale; predecessor-head success is never merge evidence | At merge time, re-fetch the current PR head and require all protected exact-head Checks/reviews to be successful |
-| Test/documentation quality | Bootstrap validation guards machine-readable architecture contract | Partial | Runtime statement/branch/docstring/edge-case coverage does not exist because runtime is not implemented | Require 100% coverage for each production slice introduced |
+| Authority/PRD/TRD | README, ADR 0001, ARCHITECTURE, PRD, TRD | Product and runtime boundary defined | No released API/service contract yet | Review stacked PR against bootstrap and downstream consumer boundary |
+| Rust identity/replay kernel | `src/lib.rs`, `tests/ingestion_kernel.rs` | Implemented on stack | Exact-head hosted Rust checks have not yet proven compile/lint/docs/coverage | Require current-head quality run, then repair any concrete failure |
+| Statement identity | `(tenant_key, statement_key)`, version/comparator equality, SHA-256 + comparison-byte confirmation | Executable deterministic core | No real PostgreSQL race proof | Add durable repository and concurrent identical/conflicting UPSERT tests |
+| Request provenance | exact raw bytes in `IngestionReceipt`; `ingestion_receipt` + `statement_ingestion_item` schema | Core + schema implemented | Batch parser/span retention and durable conflict-commit behavior unproven | PostgreSQL integration test must prove conflict audit survives application error response |
+| Tenant isolation | composite tenant keys/FKs; forced RLS using `app.tenant_key` | Schema baseline implemented | No application-equivalent DB role test; migration owner could bypass ordinary assumptions | Run RLS adversarial tests with non-superuser/non-`BYPASSRLS` role |
+| Persistence naming/3NF | multiword snake_case tables/columns; normalized receipt, statement, occurrence, void relation | Implemented baseline | Schema apply/reapply/rollback and lock behavior not tested | Real PostgreSQL migration and contention fixture |
+| Canonical protocol | xAPI 2.0 canonical; 1.0.3/cmi5 explicit compatibility surface | Boundary implemented, parser absent | No executable version-specific parser/comparator or conformance suite | Implement lossless validation/comparison before HTTP endpoint |
+| Document resources | planned current-state + immutable revision model | Defined only | CRUD, conditional requests, concurrency semantics absent | Separate document-resource implementation slice |
+| Attachments | planned content-addressed immutable storage | Defined only | No blob storage, malicious-content non-execution, integrity or authorization proof | Dedicated attachment implementation/tests |
+| Compatibility provenance | compatibility adapter/artifact boundary | Defined only | No transformation or reproducibility evidence | Implement only after canonical parser is proven |
+| CI quality | stacked-PR trigger, pinned Rust toolchain action, fmt/test/clippy/rustdoc, pinned cargo-llvm-cov 100% line gate | Workflow implemented | Hosted runner allocation and exact-head result are external/live | Require current-head check completion; predecessor-head success is invalid evidence |
+| Security/operability | forced RLS schema and immutable evidence model | Partial | No service authn/z, backup/restore, compose deployment, telemetry, recovery or load evidence | Add durable service slice before release-readiness claim |
 
 ## DDD/context map
 
-The core bounded context is **Learning Record Evidence**. Ubiquitous language includes `statement_record`, `ingestion_receipt`, `statement_ingestion_item`, `document_revision`, `attachment_blob`, `voiding_relation`, and `compatibility_artifact`.
+**Core subdomain:** Learning Record Evidence. **Supporting:** Protocol Compatibility, Document Resources, Attachment Evidence, Tenant Authorization, and Conformance Evidence. **Generic:** PostgreSQL durability, object storage, telemetry, deployment, and recovery.
 
-- `statement_record` is the canonical immutable Statement entity scoped to a tenant.
-- `ingestion_receipt` is immutable request evidence.
-- `statement_ingestion_item` associates each request occurrence and zero-based request index with the resolved canonical Statement identity or rejection result.
-- document resources are mutable current-state aggregates with immutable audit revisions; they must not inherit Statement immutability semantics accidentally.
-- compatibility artifacts are provenance records, never a second source of canonical learning evidence.
+The Learning Record Evidence bounded context uses `StatementCandidate`, `StoredStatement`, `IngestionReceipt`, `StatementOccurrence`, and `VoidingRelation`. `StatementKernel` is the domain service for the deterministic identity/replay decision. A future `StatementEvidenceRepository` owns the durable transaction. Canonical Statement plus its immutable ingest/voiding facts form the minimum consistency boundary; no tenant-wide lock is permitted. Potential domain events (`StatementAccepted`, `StatementReplayed`, `StatementConflictObserved`, `StatementVoided`) are emitted only after durable commit when a real consumer exists.
 
-Learning Management Platform is an upstream/downstream consumer for progression and completion policy; `learning-interoperability-contracts` is the generic contract authority. Cross-repository database access is forbidden; integration occurs through released contracts/APIs/events.
+Learning Management Platform consumes released learning evidence for progression/completion policy. `learning-interoperability-contracts` owns reusable cross-product interoperability definitions. Compatibility adapters are an anti-corruption layer and never become a shared kernel of canonical learning truth. Cross-repository database reads are forbidden.
 
-## Persistence invariants
+## Persistence and transaction invariants
 
-Relational authoritative facts remain in third normal form. Database object names use at least two semantic words and snake_case by default. Every tenant-owned relation includes tenant identity in its key/reference boundary. Item-level ingestion and UPSERT behavior must be explicit: an exact retry resolves to the existing canonical Statement while creating new immutable request-occurrence evidence; a conflicting replay fails closed without overwriting or inserting a second canonical identity.
+Relational authoritative facts remain in 3NF. Named persistence objects use at least two semantic words and `snake_case`. Every tenant-owned reference carries `tenant_key`. Raw evidence is stored as bytes, not normalized JSON. The item-level UPSERT contract is explicit: validate first; persist request evidence; serialize only the target `(tenant_key, statement_key)` identity; insert once or compare received version/comparison algorithm/digest/comparison bytes; persist `accepted`, `replayed`, or `conflict`; and commit audit evidence even when the HTTP/API result is a conflict. A conflict must never be implemented by rolling back its receipt.
 
-Hot-partition and lock behavior must be measured when persistence exists. Concurrency tests must establish that duplicate-ID races cannot create two accepted canonical Statements. Read/write separation is a future operational option only when measured lock/load evidence justifies it.
+Hot-key lock waits and contention must be measured before partitioning or read/write separation. No heuristic sharding or weighting is introduced without measured evidence.
 
 ## Active gap order
 
-1. Merge bootstrap PR #1 only after live current-head quality/security/SAST checks and review gates complete successfully.
-2. Implement the minimal Rust-first persistence/protocol core needed to enforce statement identity, tenant isolation, request provenance and version-aware replay comparison.
-3. Add executable xAPI 2.0 Statement and document-resource conformance evidence.
-4. Add the explicit xAPI 1.0.3/cmi5 compatibility adapter with deterministic provenance artifacts and separate conformance fixtures.
-5. Add content-addressed attachment storage/integrity evidence and hostile-content tests.
-6. Add concurrency/load/operability evidence, including realistic PostgreSQL contention and service-level latency before any production-readiness claim.
+1. Open and validate the stacked ingestion PR; repair current-head Rust/coverage/review findings without weakening gates.
+2. Merge bootstrap PR #1 only after its own live current-head reviews and required checks pass, then retarget/revalidate the ingestion PR against `develop`.
+3. Implement the PostgreSQL `StatementEvidenceRepository` and prove atomic identical/conflicting races, RLS isolation, migration lifecycle, and durable conflict receipts.
+4. Implement version-specific lossless xAPI parsing/comparison and executable xAPI 2.0 conformance traceability.
+5. Add document resources, compatibility provenance, then attachments as separate bounded slices.
+6. Add authenticated asynchronous service/deployment/recovery/load evidence before any production-readiness or standards-certification claim.
