@@ -12,12 +12,15 @@
 - Rust `StatementKernel` implementing tenant-scoped canonical identity, immutable request receipts, version-aware replay/conflict decisions, and non-destructive voiding.
 - Regression and edge-case tests for first ingest, equivalent replay, conflict rejection, version mismatch, tenant isolation, exact raw evidence retention, invalid evidence, and voiding failures.
 - PostgreSQL statement-evidence migration with composite tenant keys, 3NF relations, exact `bytea` evidence, and forced tenant row-level security.
+- `persist_statement_occurrence`, a security-invoker item-level PostgreSQL transaction primitive that retains request/occurrence evidence while resolving accepted, replayed, and conflicting Statement identities atomically.
+- Real PostgreSQL race fixtures for identical first writers and competing content, requiring a single canonical row and preserved accepted/replayed or accepted/conflict occurrence evidence.
 - Product and technical requirements for the first executable commercialization slice.
-- Exact-head Rust formatting, test, Clippy, rustdoc, and 100% line-coverage gates, including pull requests stacked on non-default branches.
+- Exact-head Rust formatting, test, Clippy, rustdoc, 100% line-coverage, PostgreSQL invariant, and transactional race gates, including pull requests stacked on non-default branches.
 
 ### Changed
 
 - Hardened exact-head bootstrap validation, statement identity, attachment digests, and compatibility-artifact provenance so conflicting evidence fails closed and transformed outputs remain auditable without becoming canonical learning evidence.
 - Replaced raw request-body replay equality with version-aware xAPI Statement comparison while retaining immutable request receipts and per-Statement provenance for single and batch ingestion.
 - Separated canonical Statement identity from per-request ingestion occurrences so idempotent retries retain every immutable receipt, and replaced phrase-only bootstrap checks with an exact machine-readable contract.
-- Aligned persistence identity terminology on `tenant_key` / `statement_key` and raw 32-octet SHA-256 digests so code, migration, DATA_MODEL, PRD, TRD, and CI describe one contract.
+- Aligned persistence identity terminology on `tenant_key` / `statement_key` and raw 32-octet SHA-256 digests so code, migration, DATA_MODEL, PRD, TRD, architecture, and CI describe one contract.
+- Kept canonical replay resolution read-only: PostgreSQL unique-index conflict serialization protects the minimum Statement identity while immutable rows do not require UPDATE privileges or an extra row lock.
