@@ -130,11 +130,9 @@ CREATE FUNCTION persist_statement_occurrence(
     p_tenant_key text,
     p_received_xapi_version text,
     p_raw_request_bytes bytea,
-    p_request_content_hash bytea,
     p_request_statement_index integer,
     p_statement_key text,
     p_statement_comparison_version text,
-    p_content_hash bytea,
     p_comparison_bytes bytea,
     p_raw_statement_bytes bytea
 )
@@ -151,6 +149,8 @@ DECLARE
     v_receipt_number bigint;
     v_inserted boolean;
     v_existing statement_record%ROWTYPE;
+    v_request_content_hash bytea;
+    v_content_hash bytea;
     v_outcome text;
     v_resolved_statement_key text;
 BEGIN
@@ -158,6 +158,9 @@ BEGIN
         RAISE EXCEPTION 'tenant context mismatch for statement persistence'
             USING ERRCODE = '42501';
     END IF;
+
+    v_request_content_hash := sha256(p_raw_request_bytes);
+    v_content_hash := sha256(p_comparison_bytes);
 
     INSERT INTO ingestion_receipt (
         tenant_key,
@@ -168,7 +171,7 @@ BEGIN
         p_tenant_key,
         p_received_xapi_version,
         p_raw_request_bytes,
-        p_request_content_hash
+        v_request_content_hash
     )
     RETURNING receipt_number INTO v_receipt_number;
 
@@ -186,7 +189,7 @@ BEGIN
             p_statement_key,
             p_received_xapi_version,
             p_statement_comparison_version,
-            p_content_hash,
+            v_content_hash,
             p_comparison_bytes,
             p_raw_statement_bytes
         )
@@ -207,7 +210,7 @@ BEGIN
 
         IF v_existing.received_xapi_version = p_received_xapi_version
            AND v_existing.statement_comparison_version = p_statement_comparison_version
-           AND v_existing.content_hash = p_content_hash
+           AND v_existing.content_hash = v_content_hash
            AND v_existing.comparison_bytes = p_comparison_bytes THEN
             v_outcome := 'replayed';
             v_resolved_statement_key := p_statement_key;
@@ -239,7 +242,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION persist_statement_occurrence(
-    text, text, bytea, bytea, integer, text, text, bytea, bytea, bytea
+    text, text, bytea, integer, text, text, bytea, bytea
 ) FROM PUBLIC;
 
 COMMIT;
