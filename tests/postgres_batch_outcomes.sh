@@ -89,4 +89,28 @@ then
   exit 1
 fi
 
+for successful_outcome in accepted replayed; do
+  if psql -v ON_ERROR_STOP=1 -v receipt_number="$receipt_number" -v successful_outcome="$successful_outcome" <<'SQL'
+INSERT INTO statement_ingestion_item (
+    tenant_key,
+    receipt_number,
+    request_statement_index,
+    submitted_statement_key,
+    comparison_outcome,
+    resolved_statement_key
+) VALUES (
+    'tenant-alpha',
+    :'receipt_number'::bigint,
+    CASE WHEN :'successful_outcome' = 'accepted' THEN 3 ELSE 4 END,
+    'batch-missing-canonical-link',
+    :'successful_outcome',
+    NULL
+);
+SQL
+  then
+    echo "$successful_outcome occurrence unexpectedly accepted without a canonical resolved statement" >&2
+    exit 1
+  fi
+done
+
 echo "postgres batch rejection outcome tests passed"
