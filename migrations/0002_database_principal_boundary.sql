@@ -143,6 +143,11 @@ BEGIN
             USING ERRCODE = '22023';
     END IF;
 
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtext(p_tenant_key),
+        pg_catalog.hashtext(p_statement_key)
+    );
+
     v_request_content_hash := pg_catalog.sha256(p_raw_request_bytes);
     v_content_hash := pg_catalog.sha256(p_comparison_bytes);
 
