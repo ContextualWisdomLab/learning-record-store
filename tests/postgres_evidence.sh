@@ -58,7 +58,7 @@ INSERT INTO statement_record (
     'statement-cross-tenant',
     '2.0',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('11', 32), 'hex'),
+    sha256(decode('aa', 'hex')),
     decode('aa', 'hex'),
     convert_to('{"id":"statement-cross-tenant"}', 'UTF8')
 );
@@ -83,7 +83,7 @@ INSERT INTO statement_record (
     'statement-001',
     '2.0',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('22', 32), 'hex'),
+    sha256(decode('bb', 'hex')),
     decode('bb', 'hex'),
     convert_to('{"id":"statement-001"}', 'UTF8')
 );
@@ -104,7 +104,7 @@ INSERT INTO statement_record (
     'statement-001',
     '2.0',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('33', 32), 'hex'),
+    sha256(decode('cc', 'hex')),
     decode('cc', 'hex'),
     convert_to('{"id":"statement-001","conflict":true}', 'UTF8')
 );
@@ -124,6 +124,50 @@ SQL
   exit 1
 }
 
+if app_psql <<'SQL'
+SET app.tenant_key = 'tenant-alpha';
+INSERT INTO statement_record (
+    tenant_key,
+    statement_key,
+    received_xapi_version,
+    statement_comparison_version,
+    content_hash,
+    comparison_bytes,
+    raw_statement_bytes
+) VALUES (
+    'tenant-alpha',
+    'statement-corrupt-digest',
+    '2.0',
+    'xapi-2.0-statement-comparison/v1',
+    decode(repeat('99', 32), 'hex'),
+    convert_to('comparison-digest-contract', 'UTF8'),
+    convert_to('{"id":"statement-corrupt-digest"}', 'UTF8')
+);
+SQL
+then
+  echo "statement_record accepted a content hash that does not match comparison bytes" >&2
+  exit 1
+fi
+
+if app_psql <<'SQL'
+SET app.tenant_key = 'tenant-alpha';
+INSERT INTO ingestion_receipt (
+    tenant_key,
+    received_xapi_version,
+    raw_request_bytes,
+    request_content_hash
+) VALUES (
+    'tenant-alpha',
+    '2.0',
+    convert_to('{"id":"receipt-corrupt-digest"}', 'UTF8'),
+    decode(repeat('88', 32), 'hex')
+);
+SQL
+then
+  echo "ingestion_receipt accepted a request hash that does not match immutable request bytes" >&2
+  exit 1
+fi
+
 receipt_number="$({ app_psql -At <<'SQL'
 SET app.tenant_key = 'tenant-alpha';
 INSERT INTO ingestion_receipt (
@@ -135,7 +179,7 @@ INSERT INTO ingestion_receipt (
     'tenant-alpha',
     '2.0',
     convert_to('{"id":"statement-001"}', 'UTF8'),
-    decode(repeat('44', 32), 'hex')
+    sha256(convert_to('{"id":"statement-001"}', 'UTF8'))
 );
 SELECT max(receipt_number) FROM ingestion_receipt;
 SQL
@@ -180,7 +224,7 @@ INSERT INTO statement_record (
     'statement-voiding',
     '2.0',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('55', 32), 'hex'),
+    sha256(decode('dd', 'hex')),
     decode('dd', 'hex'),
     convert_to('{"id":"statement-voiding"}', 'UTF8')
 ),
@@ -189,7 +233,7 @@ INSERT INTO statement_record (
     'statement-target-a',
     '2.0',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('66', 32), 'hex'),
+    sha256(decode('ee', 'hex')),
     decode('ee', 'hex'),
     convert_to('{"id":"statement-target-a"}', 'UTF8')
 ),
@@ -198,7 +242,7 @@ INSERT INTO statement_record (
     'statement-target-b',
     '2.0',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('77', 32), 'hex'),
+    sha256(decode('ff', 'hex')),
     decode('ff', 'hex'),
     convert_to('{"id":"statement-target-b"}', 'UTF8')
 );
