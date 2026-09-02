@@ -1,6 +1,6 @@
 # ADR 0002: Bind tenant authorization to authenticated database principals
 
-- Status: Accepted
+- Status: Proposed
 - Date: 2026-09-02
 - Scope: PostgreSQL tenant authorization and immutable evidence writes
 
@@ -19,6 +19,8 @@ Tenant authorization at the relational boundary is derived from an administrator
 Immutable evidence writes pass through `persist_statement_occurrence`, which becomes a fixed-search-path `SECURITY DEFINER` function owned by the constrained, `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS` role `lrs_evidence_writer`. That owner is not a table owner and receives only the table/sequence privileges needed by the transaction primitive. The function still executes under forced RLS; policy evaluation is bound to the original `session_user`. Data-plane tenant principals receive function EXECUTE and read privileges required by their API path, not direct INSERT/UPDATE/DELETE privileges on immutable evidence tables.
 
 The current high-assurance boundary maps one authenticated database principal to one tenant. A future multiplexed connection-pool design may replace this with another externally authenticated binding only if the data-plane caller cannot forge or retarget that binding; it must not fall back to a freely writable custom GUC.
+
+This decision remains **Proposed** while its implementation is only present on an unmerged PR. Exact-head PostgreSQL authorization evidence, review resolution, ordinary protected-branch integration, and any required deployment-provisioning evidence must be current before the ADR can become Accepted.
 
 ## Consequences
 
