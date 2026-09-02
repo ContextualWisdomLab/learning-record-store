@@ -70,6 +70,8 @@ jobs:
               Path("docs/ARCHITECTURE.md"),
               Path("docs/DATA_MODEL.md"),
               Path("docs/adr/0001-lrs-authority-boundary.md"),
+              Path("docs/adr/0002-authenticated-database-principal-tenant-binding.md"),
+              Path("docs/adr/0003-atomic-statement-batch-serialization.md"),
               Path("docs/doctoring/REFERENCES.md"),
               Path("docs/doctoring/STANDARD_TRACEABILITY.md"),
               Path("docs/product-technical-gap-baseline.md"),
