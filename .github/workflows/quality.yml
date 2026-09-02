@@ -85,7 +85,9 @@ jobs:
               "statement_identity_key": ["tenant_id", "statement_id"],
               "tenant_reference_policy": "composite_tenant_foreign_keys_fail_closed",
           }
-          if contract != expected_contract:
+          contract_json = json.dumps(contract, sort_keys=True, separators=(",", ":"))
+          expected_contract_json = json.dumps(expected_contract, sort_keys=True, separators=(",", ":"))
+          if contract_json != expected_contract_json:
               raise SystemExit(
                   "machine-readable LRS bootstrap contract drifted from the reviewed baseline:\n"
                   + json.dumps(contract, indent=2, sort_keys=True)
