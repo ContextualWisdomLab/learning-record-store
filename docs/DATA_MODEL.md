@@ -56,7 +56,7 @@ Initial entities:
 
 `compatibility_artifact` owns the immutable transformed output bytes or payload, `output_hash`, `size_bytes`, `media_type`, and an opaque `storage_locator`. `output_hash` is SHA-256 over the exact bytes retrieved from that locator and is stored as 64 lowercase hexadecimal characters, so audit and replay can retrieve and verify the same artifact. `compatibility_transform` is the tenant-scoped provenance relation from an immutable source statement payload to one `compatibility_artifact`; it stores at least `source_xapi_version`, `target_xapi_version`, `converter_version`, `validation_status`, and `provenance_reference`. The transform and its artifact never replace canonical source learning evidence.
 
-State, Agent Profile, and Activity Profile resources expose current protocol state through their `*_document` entity while each accepted update or deletion creates an immutable `*_revision` row. Deletion closes current state but does not erase revision evidence.
+State, Agent Profile, and Activity Profile resources expose current protocol state through their `*_document` entity. Each accepted **state-changing** update or deletion creates an immutable `*_revision` row; an exact retry of the already-current representation or deletion state retains its request receipt but does not fabricate another revision. Deletion closes current state but does not erase revision evidence.
 
 The original received JSON is immutable evidence. Searchable attributes are projected into normalized relations without making the projection a substitute for the source payload.
 
