@@ -4,6 +4,21 @@
 
 **Durable, tenant-scoped learning evidence for the ContextualWisdomLab learning ecosystem.**
 
+<!-- lrs-document-contract:start -->
+```json
+{
+  "canonical_xapi_surface": "2.0",
+  "compatibility_surfaces": ["1.0.3", "cmi5 Quartz"],
+  "learning_evidence_authority": "learning_record_store",
+  "production_maturity": "pre_release",
+  "published_service": false,
+  "standards_certification": false
+}
+```
+<!-- lrs-document-contract:end -->
+
+The structured block above is the CI-checked repository-facing product contract for authority, protocol surface, maturity, publication and certification claims. The prose below explains that contract and must not contradict it.
+
 Learning Record Store is the authoritative persistence boundary for xAPI learning records and xAPI document resources. It is designed so learning products can ingest, preserve, query, and verify durable learning evidence without making the LMS, content studio, psychometrics engine, or billing system duplicate that truth.
 
 ## What it owns
