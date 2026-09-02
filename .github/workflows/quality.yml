@@ -2,7 +2,6 @@ name: Learning Record Store Quality
 
 on:
   pull_request:
-    branches: [develop, main]
   push:
     branches: [develop, main]
 
@@ -16,17 +15,33 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: learning_record_store
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d learning_record_store"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Validate bootstrap contract
+
+      - name: Validate product and persistence contract
         shell: python3 {0}
         run: |
           import json
+          import re
           from pathlib import Path
 
           required = [
@@ -34,15 +49,36 @@ jobs:
               Path("AGENTS.md"),
               Path("CLAUDE.md"),
               Path("CHANGELOG.md"),
+              Path("Cargo.toml"),
+              Path("rust-toolchain.toml"),
+              Path("src/lib.rs"),
+              Path("tests/ingestion_kernel.rs"),
+              Path("tests/request_receipts.rs"),
+              Path("tests/voiding_invariants.rs"),
+              Path("tests/batch_rejection_evidence.rs"),
+              Path("tests/postgres_evidence.sh"),
+              Path("tests/postgres_atomic_ingestion.sh"),
+              Path("tests/postgres_principal_boundary.sh"),
+              Path("tests/postgres_batch_outcomes.sh"),
+              Path("tests/postgres_batch_transaction.sh"),
+              Path("migrations/0001_statement_evidence.sql"),
+              Path("migrations/0002_database_principal_boundary.sql"),
+              Path("migrations/0003_batch_rejection_outcome.sql"),
+              Path("migrations/0004_atomic_statement_batch.sql"),
+              Path("docs/PRD.md"),
+              Path("docs/TRD.md"),
               Path("docs/ARCHITECTURE.md"),
               Path("docs/DATA_MODEL.md"),
               Path("docs/adr/0001-lrs-authority-boundary.md"),
+              Path("docs/adr/0002-authenticated-database-principal-tenant-binding.md"),
+              Path("docs/adr/0003-atomic-statement-batch-serialization.md"),
               Path("docs/doctoring/REFERENCES.md"),
               Path("docs/doctoring/STANDARD_TRACEABILITY.md"),
+              Path("docs/product-technical-gap-baseline.md"),
           ]
           missing = [str(path) for path in required if not path.is_file()]
           if missing:
-              raise SystemExit(f"missing required bootstrap files: {missing}")
+              raise SystemExit(f"missing required product files: {missing}")
 
           data_model = Path("docs/DATA_MODEL.md").read_text(encoding="utf-8")
           start_marker = "<!-- lrs-bootstrap-contract:start -->"
@@ -82,7 +118,7 @@ jobs:
               "request_occurrence_entity": "statement_ingestion_item",
               "request_statement_index": "zero_based",
               "statement_comparison": "received_surface_statement_comparison_requirements",
-              "statement_identity_key": ["tenant_id", "statement_id"],
+              "statement_identity_key": ["tenant_key", "statement_key"],
               "tenant_reference_policy": "composite_tenant_foreign_keys_fail_closed",
           }
           contract_json = json.dumps(contract, sort_keys=True, separators=(",", ":"))
@@ -93,6 +129,70 @@ jobs:
                   + json.dumps(contract, indent=2, sort_keys=True)
               )
 
+          sql = Path("migrations/0001_statement_evidence.sql").read_text(encoding="utf-8")
+          required_sql = (
+              "CREATE TABLE tenant_partition",
+              "CREATE TABLE ingestion_receipt",
+              "CREATE TABLE statement_record",
+              "CREATE TABLE statement_ingestion_item",
+              "CREATE TABLE voiding_relation",
+              "CREATE FUNCTION persist_statement_occurrence",
+              "PRIMARY KEY (tenant_key, statement_key)",
+              "PRIMARY KEY (tenant_key, voiding_statement_key)",
+              "resolved_statement_key = submitted_statement_key",
+              "FOREIGN KEY (tenant_key, receipt_number)",
+              "FORCE ROW LEVEL SECURITY",
+              "current_setting('app.tenant_key', true)",
+              "raw_request_bytes bytea",
+              "raw_statement_bytes bytea",
+          )
+          for required_fragment in required_sql:
+              if required_fragment not in sql:
+                  raise SystemExit(f"missing persistence contract: {required_fragment}")
+
+          principal_sql = Path("migrations/0002_database_principal_boundary.sql").read_text(encoding="utf-8")
+          required_principal_sql = (
+              "CREATE TABLE tenant_database_principal",
+              "session_user",
+              "SECURITY DEFINER",
+              "lrs_evidence_writer",
+              "NOBYPASSRLS",
+              "ALTER POLICY tenant_partition_scope_policy",
+              "ALTER FUNCTION persist_statement_occurrence",
+          )
+          for required_fragment in required_principal_sql:
+              if required_fragment not in principal_sql:
+                  raise SystemExit(f"missing database principal boundary contract: {required_fragment}")
+          if "current_setting('app.tenant_key'" in principal_sql:
+              raise SystemExit("database principal boundary must not authorize tenant scope from caller-selected app.tenant_key")
+
+          batch_sql = Path("migrations/0003_batch_rejection_outcome.sql").read_text(encoding="utf-8")
+          required_batch_sql = (
+              "batch_rejected",
+              "resolved_statement_key IS NULL",
+              "statement_ingestion_outcome_allowed",
+              "statement_ingestion_resolution_consistent",
+          )
+          for required_fragment in required_batch_sql:
+              if required_fragment not in batch_sql:
+                  raise SystemExit(f"missing batch rejection persistence contract: {required_fragment}")
+
+          atomic_batch_sql = Path("migrations/0004_atomic_statement_batch.sql").read_text(encoding="utf-8")
+          required_atomic_batch_sql = (
+              "CREATE FUNCTION persist_statement_batch",
+              "pg_advisory_xact_lock",
+              "batch_rejected",
+              "request_statement_index",
+              "ALTER FUNCTION persist_statement_batch",
+          )
+          for required_fragment in required_atomic_batch_sql:
+              if required_fragment not in atomic_batch_sql:
+                  raise SystemExit(f"missing atomic statement batch contract: {required_fragment}")
+
+          all_sql = sql + principal_sql + batch_sql + atomic_batch_sql
+          if re.search(r"\b(?:CREATE TABLE|CREATE INDEX|CREATE SCHEMA)\s+id\b", all_sql, re.IGNORECASE):
+              raise SystemExit("standalone generic persistence object name 'id' is forbidden")
+
           forbidden = ("TODO: replace", "TBD: replace", "PLACEHOLDER_REPLACE")
           for path in required:
               text = path.read_text(encoding="utf-8")
@@ -100,4 +200,75 @@ jobs:
                   if marker in text:
                       raise SystemExit(f"unresolved bootstrap marker {marker!r} in {path}")
 
-          print("learning record store bootstrap contract validation passed")
+          print("learning record store product contract validation passed")
+
+      - name: Exercise PostgreSQL tenant and immutability invariants
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_evidence.sh
+
+      - name: Exercise PostgreSQL atomic ingestion races
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_atomic_ingestion.sh
+
+      - name: Exercise authenticated database-principal tenant boundary
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_principal_boundary.sh
+
+      - name: Exercise PostgreSQL batch rejection outcomes
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_batch_outcomes.sh
+
+      - name: Exercise PostgreSQL shared-receipt batch transaction
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_batch_transaction.sh
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Test all targets
+        run: cargo test --all-targets
+
+      - name: Lint production and tests
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Build public documentation without warnings
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --no-deps
+
+      - name: Install pinned line-coverage tool
+        run: cargo install cargo-llvm-cov --version 0.8.6 --locked
+
+      - name: Enforce complete line coverage
+        run: cargo llvm-cov --all-targets --fail-under-lines 100 --show-missing-lines

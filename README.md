@@ -46,13 +46,15 @@ Standards references are design and conformance inputs, not certification claims
 
 ## Current maturity
 
-This repository is currently a **pre-release architecture and data-contract foundation**. It does not yet advertise a production endpoint, installable package, hosted service, released artifact, customer deployment, or xAPI/cmi5 certification. The first protected implementation must prove protocol validation, tenant isolation, normalized persistence, replay semantics, authorization, conformance, recovery, and release evidence before those states are claimed.
+This repository is currently a **pre-release implementation**. The active development stack contains a Rust Statement ingestion kernel and initial PostgreSQL evidence migrations/tests, but it does not yet advertise a production endpoint, hosted service, released artifact, customer deployment, or xAPI/cmi5 certification. The protected implementation must still prove version-specific protocol validation, a released service/repository API, durable one-receipt batch transactions, document/attachment behavior, authorization, conformance, recovery, operability, and release evidence before those states are claimed.
 
-Because no executable product is released yet, this README deliberately does not invent an install or API quickstart. The right starting point for an integrator today is the product boundary and data contract below.
+Because no executable product is released yet, this README deliberately does not invent an install or API quickstart. The right starting point for an integrator today is the product boundary and current implementation/gap evidence below.
 
 ## Architecture
 
-The initial design separates protocol handling, version-aware validation, compatibility projection, ingestion evidence, canonical statement persistence, document resources, attachments, authorization, and conformance evidence into explicit responsibilities. PostgreSQL is the intended authority for normalized identities, indexes, relationships, provenance, and integrity metadata; large immutable payloads may use object storage without moving canonical identity out of the LRS boundary.
+The design separates protocol handling, version-aware validation, compatibility projection, ingestion evidence, canonical statement persistence, document resources, attachments, authorization, and conformance evidence into explicit responsibilities. PostgreSQL is the intended authority for normalized identities, indexes, relationships, provenance, and integrity metadata; large immutable payloads may use object storage without moving canonical identity out of the LRS boundary.
+
+The current ingestion slice already proves part of that model in Rust and PostgreSQL: tenant-scoped Statement identity, immutable request/occurrence evidence, replay/conflict decisions, atomic in-memory batch rejection semantics, principal-bound row isolation, database-derived SHA-256 integrity invariants, and item-level durable UPSERT behavior. These branch capabilities remain Proposed until exact-head required checks and protected integration complete.
 
 Read:
 
@@ -71,7 +73,7 @@ Production readiness requires tenant isolation, authenticated and authorized acc
 
 ## Documentation
 
-- [Public documentation landing](docs/index.md)
+- [Public documentation landing source](docs/index.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Data model](docs/DATA_MODEL.md)
 - [Product and technical gap baseline](docs/product-technical-gap-baseline.md)
