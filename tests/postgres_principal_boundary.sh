@@ -74,7 +74,7 @@ INSERT INTO statement_record (
     'direct-write-must-fail',
     '2.0',
     'xapi-2.0-statement-comparison/v1',
-    decode(repeat('11', 32), 'hex'),
+    sha256(decode('aa', 'hex')),
     decode('aa', 'hex'),
     convert_to('{"id":"direct-write-must-fail"}', 'UTF8')
 );
@@ -179,7 +179,23 @@ then
   exit 1
 fi
 
-if psql -v ON_ERROR_STOP=1 <<'SQL'
+for table_field_case in statement_key comparison_version; do
+  case "$table_field_case" in
+    statement_key)
+      table_statement_key=$'\n'
+      table_comparison_version='xapi-2.0-statement-comparison/v1'
+      table_raw_statement='{"id":"whitespace-table-statement-key"}'
+      ;;
+    comparison_version)
+      table_statement_key='whitespace-table-comparison-version'
+      table_comparison_version=$'\t'
+      table_raw_statement='{"id":"whitespace-table-comparison-version"}'
+      ;;
+  esac
+  if psql -v ON_ERROR_STOP=1 \
+      -v table_statement_key="$table_statement_key" \
+      -v table_comparison_version="$table_comparison_version" \
+      -v table_raw_statement="$table_raw_statement" <<'SQL'
 INSERT INTO statement_record (
     tenant_key,
     statement_key,
@@ -190,18 +206,19 @@ INSERT INTO statement_record (
     raw_statement_bytes
 ) VALUES (
     'tenant-alpha',
-    E'\n',
+    :'table_statement_key',
     '2.0',
-    E'\t',
+    :'table_comparison_version',
     sha256(convert_to('comparison-whitespace-table', 'UTF8')),
     convert_to('comparison-whitespace-table', 'UTF8'),
-    convert_to('{"id":"whitespace-table-statement"}', 'UTF8')
+    convert_to(:'table_raw_statement', 'UTF8')
 );
 SQL
-then
-  echo "statement_record accepted whitespace-only statement/comparison identity" >&2
-  exit 1
-fi
+  then
+    echo "statement_record accepted whitespace-only $table_field_case" >&2
+    exit 1
+  fi
+done
 
 beta_outcome="$({ beta_psql -At <<'SQL'
 SELECT persistence_outcome
