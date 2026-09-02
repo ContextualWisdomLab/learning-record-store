@@ -36,7 +36,7 @@ Rejected as the sole mechanism. The function cannot safely assume every caller e
 
 ### Per-Statement transaction advisory locks
 
-Selected for the current bounded persistence primitive. Controlled writers take transaction-scoped advisory locks derived from the tenant and Statement identity. Batch functions acquire distinct identities in lexical order before preflight; the single-item function takes the same identity lock. Hash collisions can cause conservative extra serialization but cannot admit a conflicting canonical write. The primary key and immutable digest constraints remain the final relational invariants rather than relying on the lock as stored truth.
+Selected for the current bounded persistence primitive. Controlled writers take transaction-scoped advisory locks derived from the tenant and Statement identity. Batch functions acquire distinct identities in lexical order before preflight; the single-item function takes the same identity lock. PostgreSQL documents transaction-level advisory locks as application-defined locks that are automatically released at transaction end, and exposes the two-integer `pg_advisory_xact_lock` form used here. PostgreSQL also makes clear that advisory locks are cooperative: correctness depends on every controlled writer following the same protocol. Hash collisions can cause conservative extra serialization but cannot admit a conflicting canonical write. The primary key and immutable digest constraints remain the final relational invariants rather than relying on the lock as stored truth.
 
 ## Decision
 
@@ -59,6 +59,13 @@ If a caller supplies duplicate Statement identities, malformed arrays, blank ide
 ## Risks and follow-up
 
 - Advisory-lock hash collisions may serialize unrelated identities; lock-wait telemetry and a realistic hot-key benchmark are required before release readiness.
+- Advisory locks share PostgreSQL's lock-manager memory pool, so bounded batch cardinality and production lock-pressure evidence are required rather than assuming arbitrary batch size is operationally safe.
 - The current SQL array interface is an internal persistence contract, not a public HTTP/API schema; the Rust repository must hide it behind typed domain objects.
 - Crash/retry, migration rollback/reapply, backup/restore and process-cancellation evidence remain open.
 - PostgreSQL exact-head execution must confirm the function, forced RLS behavior, constraints and race tests before this ADR can move from Proposed.
+
+## References
+
+PostgreSQL Global Development Group. (2026). *PostgreSQL 18 documentation: Explicit locking*. https://www.postgresql.org/docs/18/explicit-locking.html
+
+PostgreSQL Global Development Group. (2026). *PostgreSQL 18 documentation: System administration functions*. https://www.postgresql.org/docs/18/functions-admin.html
