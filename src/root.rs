@@ -205,16 +205,27 @@ mod cardinality_tests {
         TenantKey::new("tenant-cardinality").expect("fixture tenant must be valid")
     }
 
+    fn candidate(statement_key: &str) -> StatementCandidate {
+        StatementCandidate::new(
+            tenant(),
+            statement_key,
+            XapiVersion::V2_0,
+            br#"{"id":"statement-cardinality"}"#.to_vec(),
+            br#"{"id":"statement-cardinality"}"#.to_vec(),
+        )
+        .expect("fixture candidate must be valid")
+    }
+
     #[test]
-    fn receipt_sequence_exhaustion_fails_closed_on_public_request_path() {
+    fn durable_bigint_receipt_sequence_exhaustion_fails_closed() {
         let mut kernel = StatementKernel {
             inner: kernel_impl::StatementKernel::default(),
-            next_receipt_number: u64::MAX,
+            next_receipt_number: i64::MAX as u64,
         };
 
         let error = kernel
             .begin_request(tenant(), XapiVersion::V2_0, br#"{}"#.to_vec())
-            .expect_err("receipt numbers must never repeat");
+            .expect_err("PostgreSQL bigint receipt numbers must never overflow");
 
         assert_eq!(
             error,
@@ -229,7 +240,7 @@ mod cardinality_tests {
     fn empty_request_validation_precedes_receipt_sequence_exhaustion() {
         let mut kernel = StatementKernel {
             inner: kernel_impl::StatementKernel::default(),
-            next_receipt_number: u64::MAX,
+            next_receipt_number: i64::MAX as u64,
         };
 
         let error = kernel
@@ -266,5 +277,30 @@ mod cardinality_tests {
         );
         assert!(kernel.receipts().is_empty());
         assert!(kernel.occurrences().is_empty());
+    }
+
+    #[test]
+    fn direct_occurrence_index_above_postgresql_integer_range_fails_closed() {
+        let mut kernel = StatementKernel::default();
+        let receipt_number = kernel
+            .begin_request(tenant(), XapiVersion::V2_0, br#"{}"#.to_vec())
+            .expect("fixture receipt must be created");
+
+        let error = kernel
+            .ingest_at_receipt(
+                receipt_number,
+                i32::MAX as u32 + 1,
+                candidate("statement-cardinality"),
+            )
+            .expect_err("unpersistable direct occurrence index must fail closed");
+
+        assert_eq!(
+            error,
+            IngestionError::InvalidEvidence {
+                field: "request_statement_index"
+            }
+        );
+        assert!(kernel.occurrences().is_empty());
+        assert_eq!(kernel.statement_count(), 0);
     }
 }
