@@ -13,12 +13,15 @@ pub use kernel_impl::{
 };
 
 const MAX_DURABLE_BATCH_STATEMENT_COUNT: usize = i32::MAX as usize + 1;
+const MAX_DURABLE_RECEIPT_NUMBER: u64 = i64::MAX as u64;
+const MAX_DURABLE_REQUEST_STATEMENT_INDEX: u32 = i32::MAX as u32;
 
 /// Executable identity/replay kernel with fail-closed durable-cardinality guards.
 ///
 /// This public boundary delegates statement semantics to the internal kernel while ensuring that
-/// every emitted zero-based occurrence index fits PostgreSQL `integer` and that receipt sequence
-/// exhaustion can never reuse an immutable receipt identity.
+/// every emitted receipt number fits PostgreSQL `bigint`, every zero-based occurrence index fits
+/// PostgreSQL `integer`, and no in-memory identity can be accepted when durable storage could not
+/// represent it.
 #[derive(Debug, Default)]
 pub struct StatementKernel {
     inner: kernel_impl::StatementKernel,
@@ -27,7 +30,7 @@ pub struct StatementKernel {
 
 impl StatementKernel {
     fn ensure_receipt_capacity(&self) -> Result<(), IngestionError> {
-        if self.next_receipt_number == u64::MAX {
+        if self.next_receipt_number >= MAX_DURABLE_RECEIPT_NUMBER {
             return Err(IngestionError::InvalidEvidence {
                 field: "receipt_sequence",
             });
@@ -41,7 +44,7 @@ impl StatementKernel {
         }
     }
 
-    /// Creates one immutable request receipt while rejecting receipt-sequence exhaustion.
+    /// Creates one immutable request receipt while rejecting durable sequence exhaustion.
     pub fn begin_request(
         &mut self,
         tenant_key: TenantKey,
@@ -73,10 +76,11 @@ impl StatementKernel {
 
     /// Applies one validated POST array under the durable occurrence-cardinality boundary.
     ///
-    /// The iterator length is checked before any item is materialized or any receipt is issued.
-    /// This makes every zero-based occurrence index representable by PostgreSQL `integer`. The
-    /// exact-size contract is revalidated after materialization so an inconsistent iterator fails
-    /// closed rather than changing request cardinality silently.
+    /// The candidate collection must expose an exact length because the kernel performs complete
+    /// request preflight before canonical writes; streaming/filtering adapters must finish protocol
+    /// validation and materialize their candidate collection before crossing this boundary. The
+    /// exact length is checked before any item is materialized here or any receipt is issued, and
+    /// is revalidated after collection so inconsistent iterators fail closed.
     pub fn ingest_batch<I>(
         &mut self,
         tenant_key: TenantKey,
@@ -123,6 +127,11 @@ impl StatementKernel {
         request_statement_index: u32,
         candidate: StatementCandidate,
     ) -> Result<IngestionOutcome, IngestionError> {
+        if request_statement_index > MAX_DURABLE_REQUEST_STATEMENT_INDEX {
+            return Err(IngestionError::InvalidEvidence {
+                field: "request_statement_index",
+            });
+        }
         self.inner
             .ingest_at_receipt(receipt_number, request_statement_index, candidate)
     }
@@ -220,7 +229,7 @@ mod cardinality_tests {
     fn durable_bigint_receipt_sequence_exhaustion_fails_closed() {
         let mut kernel = StatementKernel {
             inner: kernel_impl::StatementKernel::default(),
-            next_receipt_number: i64::MAX as u64,
+            next_receipt_number: MAX_DURABLE_RECEIPT_NUMBER,
         };
 
         let error = kernel
@@ -240,7 +249,7 @@ mod cardinality_tests {
     fn empty_request_validation_precedes_receipt_sequence_exhaustion() {
         let mut kernel = StatementKernel {
             inner: kernel_impl::StatementKernel::default(),
-            next_receipt_number: i64::MAX as u64,
+            next_receipt_number: MAX_DURABLE_RECEIPT_NUMBER,
         };
 
         let error = kernel
@@ -289,7 +298,7 @@ mod cardinality_tests {
         let error = kernel
             .ingest_at_receipt(
                 receipt_number,
-                i32::MAX as u32 + 1,
+                MAX_DURABLE_REQUEST_STATEMENT_INDEX + 1,
                 candidate("statement-cardinality"),
             )
             .expect_err("unpersistable direct occurrence index must fail closed");
