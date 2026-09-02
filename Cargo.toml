@@ -6,6 +6,9 @@ rust-version = "1.80"
 description = "Immutable xAPI evidence kernel for ContextualWisdomLab"
 publish = false
 
+[lib]
+path = "src/root.rs"
+
 [dependencies]
 sha2 = "0.10"
 
