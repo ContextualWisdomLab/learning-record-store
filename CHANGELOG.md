@@ -16,9 +16,12 @@
 - Real PostgreSQL race fixtures for identical first writers and competing content, requiring a single canonical row and preserved accepted/replayed or accepted/conflict occurrence evidence.
 - Authenticated database-principal tenant binding through `tenant_database_principal`, `authorized_tenant_key()`, constrained `lrs_evidence_writer`, and negative tests proving a caller-selected tenant GUC cannot retarget authorization or bypass immutable-evidence controls.
 - Explicit durable `batch_rejected` outcome and PostgreSQL constraint tests for rejected POST-array item evidence, including successful-outcome fixtures that require a non-null canonical Statement link.
+- `persist_statement_batch`, a controlled PostgreSQL primitive for one-receipt/many-item validated POST-array persistence with deterministic per-Statement identity serialization, atomic canonical mutation, and durable `conflict`/`batch_rejected` occurrence evidence.
+- Real PostgreSQL shared-receipt batch transaction fixtures covering two-item acceptance, replay, conflict rejection without sibling leakage, canonical non-overwrite, and duplicate-identity fail-closed behavior.
 - ADR 0002 documenting the authenticated database-principal authorization boundary and its PostgreSQL/OWASP rationale.
+- Proposed ADR 0003 documenting per-Statement transaction serialization for atomic durable batches and explicitly rejecting tenant-wide/table-wide locks.
 - Product and technical requirements for the first executable commercialization slice.
-- Exact-head Rust formatting, test, Clippy, rustdoc, 100% line-coverage, PostgreSQL invariant, transactional race, database-principal, and batch-outcome gates, including pull requests stacked on non-default branches.
+- Exact-head Rust formatting, test, Clippy, rustdoc, 100% line-coverage, PostgreSQL invariant, transactional race, database-principal, batch-outcome, and shared-receipt batch gates, including pull requests stacked on non-default branches.
 - Product-first README, Apache-2.0 repository license, public documentation landing source, and clarified document-resource revision/idempotency semantics carried forward from the foundation branch without rewriting stack history.
 
 ### Changed
@@ -33,3 +36,5 @@
 - Replaced PostgreSQL space-only `btrim` identity/version checks with whitespace-class validation at schema and controlled-writer boundaries so tabs/newlines cannot persist where the Rust kernel rejects blank identities; the regression suite now isolates statement-key and comparison-version failures so one constraint cannot mask the other.
 - Tightened PostgreSQL occurrence consistency so `accepted` and `replayed` rows cannot pass a CHECK constraint with a null canonical link under SQL three-valued logic, and privileged/manual inserts cannot store digests inconsistent with immutable request/comparison bytes.
 - Bound the public Rust kernel to PostgreSQL persistence widths: receipt issuance fails closed before signed `bigint` exhaustion, both batch and direct occurrence indexes stay within signed `integer`, and validated POST arrays must cross the kernel boundary as exact-size collections so complete preflight remains mandatory.
+- Unified controlled single-item and batch writes on the same transaction-scoped per-Statement advisory-lock protocol, acquired in deterministic order for batches, so an overlapping controlled writer cannot invalidate batch preflight without serializing unrelated tenant evidence.
+- Downgraded ADR 0002 from Accepted to Proposed while its authorization implementation remains only on the unmerged writer stack; acceptance now requires current exact-head evidence and ordinary protected-branch integration.
