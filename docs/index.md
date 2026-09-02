@@ -14,14 +14,16 @@ The repository is still pre-release. Documentation and active pull requests desc
 
 ## Start here
 
-- [Repository README](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/README.md) — product scope and repository status.
-- [Architecture](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/ARCHITECTURE.md) — bounded context and system structure.
-- [Data model](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/DATA_MODEL.md) — normalized learning-evidence model and invariants.
-- [Product and technical gap baseline](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/product-technical-gap-baseline.md) — current gaps and evidence required for commercialization.
-- [Authority boundary decision](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/adr/0001-lrs-authority-boundary.md) — reviewed ownership and integration decision.
-- [Standards traceability](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/doctoring/STANDARD_TRACEABILITY.md) — normative surfaces and executable-evidence requirements.
-- [Research references](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/docs/doctoring/REFERENCES.md) — authoritative standards references.
-- [Changelog](https://github.com/ContextualWisdomLab/learning-record-store/blob/develop/CHANGELOG.md) — repository-visible changes.
+The source links below are pinned to the exact GitHub Pages build revision rather than the mutable `develop` branch. This keeps the published navigation bound to the same reviewed source revision as this page.
+
+- [Repository README](https://github.com/ContextualWisdomLab/learning-record-store/blob/{{ site.github.build_revision }}/README.md) — product scope and repository status.
+- [Architecture](https://github.com/ContextualWisdomLab/learning-record-store/blob/{{ site.github.build_revision }}/docs/ARCHITECTURE.md) — bounded context and system structure.
+- [Data model](https://github.com/ContextualWisdomLab/learning-record-store/blob/{{ site.github.build_revision }}/docs/DATA_MODEL.md) — normalized learning-evidence model and invariants.
+- [Product and technical gap baseline](https://github.com/ContextualWisdomLab/learning-record-store/blob/{{ site.github.build_revision }}/docs/product-technical-gap-baseline.md) — current gaps and evidence required for commercialization.
+- [Authority boundary decision](https://github.com/ContextualWisdomLab/learning-record-store/blob/{{ site.github.build_revision }}/docs/adr/0001-lrs-authority-boundary.md) — reviewed ownership and integration decision.
+- [Standards traceability](https://github.com/ContextualWisdomLab/learning-record-store/blob/{{ site.github.build_revision }}/docs/doctoring/STANDARD_TRACEABILITY.md) — normative surfaces and executable-evidence requirements.
+- [Research references](https://github.com/ContextualWisdomLab/learning-record-store/blob/{{ site.github.build_revision }}/docs/doctoring/REFERENCES.md) — authoritative standards references.
+- [Changelog](https://github.com/ContextualWisdomLab/learning-record-store/blob/{{ site.github.build_revision }}/CHANGELOG.md) — repository-visible changes.
 - [GitHub Releases](https://github.com/ContextualWisdomLab/learning-record-store/releases) — future versioned release artifacts when they exist.
 - [Ask DeepWiki](https://deepwiki.com/ContextualWisdomLab/learning-record-store) — repository-aware questions and navigation.
 
