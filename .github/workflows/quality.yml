@@ -60,9 +60,11 @@ jobs:
               Path("tests/postgres_atomic_ingestion.sh"),
               Path("tests/postgres_principal_boundary.sh"),
               Path("tests/postgres_batch_outcomes.sh"),
+              Path("tests/postgres_batch_transaction.sh"),
               Path("migrations/0001_statement_evidence.sql"),
               Path("migrations/0002_database_principal_boundary.sql"),
               Path("migrations/0003_batch_rejection_outcome.sql"),
+              Path("migrations/0004_atomic_statement_batch.sql"),
               Path("docs/PRD.md"),
               Path("docs/TRD.md"),
               Path("docs/ARCHITECTURE.md"),
@@ -173,7 +175,19 @@ jobs:
               if required_fragment not in batch_sql:
                   raise SystemExit(f"missing batch rejection persistence contract: {required_fragment}")
 
-          all_sql = sql + principal_sql + batch_sql
+          atomic_batch_sql = Path("migrations/0004_atomic_statement_batch.sql").read_text(encoding="utf-8")
+          required_atomic_batch_sql = (
+              "CREATE FUNCTION persist_statement_batch",
+              "pg_advisory_xact_lock",
+              "batch_rejected",
+              "request_statement_index",
+              "ALTER FUNCTION persist_statement_batch",
+          )
+          for required_fragment in required_atomic_batch_sql:
+              if required_fragment not in atomic_batch_sql:
+                  raise SystemExit(f"missing atomic statement batch contract: {required_fragment}")
+
+          all_sql = sql + principal_sql + batch_sql + atomic_batch_sql
           if re.search(r"\b(?:CREATE TABLE|CREATE INDEX|CREATE SCHEMA)\s+id\b", all_sql, re.IGNORECASE):
               raise SystemExit("standalone generic persistence object name 'id' is forbidden")
 
@@ -221,6 +235,15 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: postgres
         run: bash tests/postgres_batch_outcomes.sh
+
+      - name: Exercise PostgreSQL shared-receipt batch transaction
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_batch_transaction.sh
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
