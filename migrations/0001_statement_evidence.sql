@@ -23,7 +23,9 @@ CREATE TABLE ingestion_receipt (
     CONSTRAINT ingestion_receipt_request_nonempty
         CHECK (octet_length(raw_request_bytes) > 0),
     CONSTRAINT ingestion_receipt_hash_length
-        CHECK (octet_length(request_content_hash) = 32)
+        CHECK (octet_length(request_content_hash) = 32),
+    CONSTRAINT ingestion_receipt_hash_matches_request
+        CHECK (request_content_hash = pg_catalog.sha256(raw_request_bytes))
 );
 
 CREATE TABLE statement_record (
@@ -47,6 +49,8 @@ CREATE TABLE statement_record (
         CHECK (statement_comparison_version !~ '^[[:space:]]*$'),
     CONSTRAINT statement_record_hash_length
         CHECK (octet_length(content_hash) = 32),
+    CONSTRAINT statement_record_hash_matches_comparison
+        CHECK (content_hash = pg_catalog.sha256(comparison_bytes)),
     CONSTRAINT statement_record_comparison_nonempty
         CHECK (octet_length(comparison_bytes) > 0),
     CONSTRAINT statement_record_source_nonempty
@@ -75,6 +79,7 @@ CREATE TABLE statement_ingestion_item (
         CHECK (comparison_outcome IN ('accepted', 'replayed', 'conflict')),
     CONSTRAINT statement_ingestion_resolution_consistent CHECK (
         (comparison_outcome IN ('accepted', 'replayed')
+            AND resolved_statement_key IS NOT NULL
             AND resolved_statement_key = submitted_statement_key)
         OR (comparison_outcome = 'conflict' AND resolved_statement_key IS NULL)
     )
