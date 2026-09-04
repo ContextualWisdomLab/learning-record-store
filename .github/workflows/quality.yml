@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: learning-record-store-quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
@@ -145,3 +145,5 @@ jobs:
                       raise SystemExit(f"unresolved bootstrap marker {marker!r} in {path}")
 
           print("learning record store bootstrap contract validation passed")
+      - name: Validate workflow concurrency contract
+        run: python3 tests/test_workflow_concurrency_contract.py
