@@ -1,0 +1,149 @@
+name: Learning Record Store Quality
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Validate bootstrap contract
+        shell: python3 {0}
+        run: |
+          import json
+          from pathlib import Path
+
+          required = [
+              Path("README.md"),
+              Path("AGENTS.md"),
+              Path("CLAUDE.md"),
+              Path("CHANGELOG.md"),
+              Path("docs/index.md"),
+              Path("docs/ARCHITECTURE.md"),
+              Path("docs/DATA_MODEL.md"),
+              Path("docs/adr/0001-lrs-authority-boundary.md"),
+              Path("docs/doctoring/REFERENCES.md"),
+              Path("docs/doctoring/STANDARD_TRACEABILITY.md"),
+          ]
+          missing = [str(path) for path in required if not path.is_file()]
+          if missing:
+              raise SystemExit(f"missing required bootstrap files: {missing}")
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f"duplicate JSON object key: {key!r}")
+                  result[key] = value
+              return result
+
+          def parse_contract(path, start_marker, end_marker):
+              text = path.read_text(encoding="utf-8")
+              if text.count(start_marker) != 1 or text.count(end_marker) != 1:
+                  raise SystemExit(
+                      f"{path} must contain exactly one machine-readable contract between "
+                      f"{start_marker!r} and {end_marker!r}"
+                  )
+              block = text.split(start_marker, 1)[1].split(end_marker, 1)[0].strip()
+              if not block.startswith("```json\n") or not block.endswith("\n```"):
+                  raise SystemExit(f"{path} machine-readable contract must be a fenced JSON object")
+              try:
+                  return json.loads(
+                      block[len("```json\n"):-len("\n```")],
+                      object_pairs_hook=reject_duplicate_keys,
+                  )
+              except ValueError as exc:
+                  raise SystemExit(f"invalid machine-readable contract in {path}: {exc}") from exc
+
+          data_model_path = Path("docs/DATA_MODEL.md")
+          contract = parse_contract(
+              data_model_path,
+              "<!-- lrs-bootstrap-contract:start -->",
+              "<!-- lrs-bootstrap-contract:end -->",
+          )
+
+          expected_contract = {
+              "batch_duplicate_statement_id": "reject_before_persistence",
+              "canonical_xapi_surface": "2.0",
+              "comparison_hash_algorithm": "SHA-256",
+              "compatibility_artifact_authority": "provenance_only",
+              "compatibility_surfaces": ["1.0.3", "cmi5 Quartz"],
+              "database_normal_form": "3NF",
+              "raw_request_bytes_are_statement_comparator": False,
+              "request_evidence_entity": "ingestion_receipt",
+              "request_occurrence_entity": "statement_ingestion_item",
+              "request_statement_index": "zero_based",
+              "statement_comparison": "received_surface_statement_comparison_requirements",
+              "statement_identity_key": ["tenant_id", "statement_id"],
+              "tenant_reference_policy": "composite_tenant_foreign_keys_fail_closed",
+          }
+          contract_json = json.dumps(contract, sort_keys=True, separators=(",", ":"))
+          expected_contract_json = json.dumps(expected_contract, sort_keys=True, separators=(",", ":"))
+          if contract_json != expected_contract_json:
+              raise SystemExit(
+                  "machine-readable LRS bootstrap contract drifted from the reviewed baseline:\n"
+                  + json.dumps(contract, indent=2, sort_keys=True)
+              )
+
+          expected_document_contract = {
+              "canonical_xapi_surface": "2.0",
+              "compatibility_surfaces": ["1.0.3", "cmi5 Quartz"],
+              "learning_evidence_authority": "learning_record_store",
+              "production_maturity": "pre_release",
+              "published_service": False,
+              "standards_certification": False,
+          }
+          expected_document_contract_json = json.dumps(
+              expected_document_contract,
+              sort_keys=True,
+              separators=(",", ":"),
+          )
+          document_contract_paths = [
+              Path("README.md"),
+              Path("docs/index.md"),
+              Path("docs/ARCHITECTURE.md"),
+              Path("docs/doctoring/STANDARD_TRACEABILITY.md"),
+          ]
+          for path in document_contract_paths:
+              document_contract = parse_contract(
+                  path,
+                  "<!-- lrs-document-contract:start -->",
+                  "<!-- lrs-document-contract:end -->",
+              )
+              document_contract_json = json.dumps(
+                  document_contract,
+                  sort_keys=True,
+                  separators=(",", ":"),
+              )
+              if document_contract_json != expected_document_contract_json:
+                  raise SystemExit(
+                      f"{path} product/standards/publication contract contradicts the reviewed baseline:\n"
+                      + json.dumps(document_contract, indent=2, sort_keys=True)
+                  )
+
+          forbidden = ("TODO: replace", "TBD: replace", "PLACEHOLDER_REPLACE")
+          for path in required:
+              text = path.read_text(encoding="utf-8")
+              for marker in forbidden:
+                  if marker in text:
+                      raise SystemExit(f"unresolved bootstrap marker {marker!r} in {path}")
+
+          print("learning record store bootstrap contract validation passed")
+      - name: Validate workflow concurrency contract
+        run: python3 tests/test_workflow_concurrency_contract.py
