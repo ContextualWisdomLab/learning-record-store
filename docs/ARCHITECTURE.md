@@ -1,5 +1,18 @@
 # Architecture
 
+<!-- lrs-document-contract:start -->
+```json
+{
+  "canonical_xapi_surface": "2.0",
+  "compatibility_surfaces": ["1.0.3", "cmi5 Quartz"],
+  "learning_evidence_authority": "learning_record_store",
+  "production_maturity": "pre_release",
+  "published_service": false,
+  "standards_certification": false
+}
+```
+<!-- lrs-document-contract:end -->
+
 The Learning Record Store is the authoritative persistence service for xAPI learning records and xAPI document resources. It does not own enrollment, course completion policy, authored content, or psychometric response data.
 
 ## Initial modules

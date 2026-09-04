@@ -1,5 +1,18 @@
 # Standards traceability
 
+<!-- lrs-document-contract:start -->
+```json
+{
+  "canonical_xapi_surface": "2.0",
+  "compatibility_surfaces": ["1.0.3", "cmi5 Quartz"],
+  "learning_evidence_authority": "learning_record_store",
+  "production_maturity": "pre_release",
+  "published_service": false,
+  "standards_certification": false
+}
+```
+<!-- lrs-document-contract:end -->
+
 This file is the bootstrap traceability ledger for the Learning Record Store. It records standards ownership and the evidence that must exist before this repository makes an implementation or conformance claim. Documentation alone is not conformance evidence.
 
 Primary-source status was rechecked on 2026-09-01. IEEE 9274.1.1-2023 remains an active xAPI base standard, and ISO/IEC/IEEE 39274-1-1:2025 remains the published international adoption. cmi5 Quartz remains a separate xAPI 1.0.3 compatibility surface; it is not evidence that an xAPI 2.0 implementation conforms to cmi5.
