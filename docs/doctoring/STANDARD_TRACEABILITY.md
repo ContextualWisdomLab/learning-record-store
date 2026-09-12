@@ -45,6 +45,8 @@ Executable evidence is split by invariant. `tests/postgres_atomic_ingestion.sh` 
 
 These paths may be cited as implementation evidence only after the exact PR head passes the corresponding hosted quality workflow. Proposed migration 0004 and `tests/postgres_batch_transaction.sh` provide the internal durable one-receipt/many-item PostgreSQL primitive and transaction evidence. They do not change the `Not implemented` conformance maturity above because the version-specific parser, Rust/REST adapter, attachments, document resources, and independent xAPI/cmi5 conformance suites are still absent. ADR 0002 records the authorization decision; `docs/product-technical-gap-baseline.md` records the remaining commercialization verification order.
 
+`tests/voiding_invariants.rs` proves only the repository's internal content-binding policy: a validator-classified StatementRef target is retained with the immutable Statement, ordinary Statements cannot authorize voiding, and callers cannot choose a different relation target. It is not xAPI or cmi5 conformance evidence. The future version-specific parser/adapter and independent conformance suite must prove verb recognition, StatementRef shape, version rules, and rejection behavior before this row can advance.
+
 ## APA 7 references
 
 Advanced Distributed Learning Initiative. (n.d.). *Experience API specification* (Part 2, §§2.2-2.3.1; Part 3, Statement Resource). https://github.com/adlnet/xAPI-Spec
