@@ -1,0 +1,20 @@
+[package]
+name = "learning-record-store"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+description = "Immutable xAPI evidence kernel for ContextualWisdomLab"
+publish = false
+
+[lib]
+path = "src/root.rs"
+
+[dependencies]
+sha2 = "0.10"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[lints.clippy]
+all = "deny"
