@@ -74,6 +74,14 @@ require(
     "migration 0002 must define the shared lock-key derivation",
 )
 
+# Rollback must establish its exclusion barrier before observing emptiness.
+require(
+    "LOCK TABLE\n    tenant_partition," in rollback_migration
+    and "IN ACCESS EXCLUSIVE MODE;" in rollback_migration
+    and rollback_migration.index("LOCK TABLE") < rollback_migration.index("IF EXISTS"),
+    "rollback must lock every evidence relation before its emptiness check",
+)
+
 # The public error contract includes self-reference and opposite-role conflicts.
 require(
     "opposite voiding role" in rust_source,
