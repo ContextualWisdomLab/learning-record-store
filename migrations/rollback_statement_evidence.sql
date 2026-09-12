@@ -1,14 +1,5 @@
 BEGIN;
 
-LOCK TABLE
-    tenant_partition,
-    tenant_database_principal,
-    ingestion_receipt,
-    statement_record,
-    statement_ingestion_item,
-    voiding_relation
-IN ACCESS EXCLUSIVE MODE;
-
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM tenant_partition)
