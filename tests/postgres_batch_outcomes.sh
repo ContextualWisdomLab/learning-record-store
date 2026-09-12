@@ -18,7 +18,7 @@ INSERT INTO ingestion_receipt (
     request_content_hash
 ) VALUES (
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('[{"id":"batch-a"},{"id":"batch-b"}]', 'UTF8'),
     sha256(convert_to('[{"id":"batch-a"},{"id":"batch-b"}]', 'UTF8'))
 )
