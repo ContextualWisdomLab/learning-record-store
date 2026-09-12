@@ -30,6 +30,7 @@
 - Item and batch PostgreSQL regression cases rejecting incompatible received-xAPI/comparison-algorithm version pairs before durable mutation.
 - Empty pre-release schema rollback/reapply evidence plus a nonempty fail-closed guard that preserves retained learning records and tenant bindings.
 - A pre-rollback table-lock barrier and concurrent-writer fixture preventing evidence committed during rollback from being dropped after a stale emptiness check.
+- Content-bound voiding semantics that retain a validator-classified StatementRef target with the immutable Statement and derive each relation from that stored meaning instead of accepting a caller-selected target.
 - Product-first README, Apache-2.0 repository license, public documentation landing source, and clarified document-resource revision/idempotency semantics carried forward from the foundation branch without rewriting stack history.
 
 ### Changed
