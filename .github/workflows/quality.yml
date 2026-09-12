@@ -62,6 +62,7 @@ jobs:
               Path("tests/postgres_batch_outcomes.sh"),
               Path("tests/postgres_batch_transaction.sh"),
               Path("tests/postgres_fixture_setup.sh"),
+              Path("tests/postgres_migration_recovery.sh"),
               Path("migrations/0001_statement_evidence.sql"),
               Path("migrations/0002_database_principal_boundary.sql"),
               Path("migrations/0003_batch_rejection_outcome.sql"),
@@ -267,6 +268,15 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: postgres
         run: bash tests/postgres_batch_transaction.sh
+
+      - name: Exercise PostgreSQL migration recovery
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_migration_recovery.sh
 
       - name: Exercise PostgreSQL batch rejection outcomes
         env:
