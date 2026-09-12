@@ -258,7 +258,7 @@ mod cardinality_tests {
     #[test]
     fn oversized_batch_fails_closed_on_public_ingestion_path_before_materialization() {
         let mut kernel = StatementKernel::default();
-        let oversized_batch = std::iter::repeat_with(|| candidate("must-not-materialize"))
+        let oversized_batch = std::iter::repeat(candidate("must-not-materialize"))
             .take(MAX_DURABLE_BATCH_STATEMENT_COUNT + 1);
 
         let error = kernel
@@ -274,6 +274,53 @@ mod cardinality_tests {
             error,
             IngestionError::InvalidEvidence {
                 field: "statement_batch_cardinality"
+            }
+        );
+        assert!(kernel.receipts().is_empty());
+        assert!(kernel.occurrences().is_empty());
+    }
+
+    #[test]
+    fn single_ingest_rejects_exhausted_durable_receipt_sequence() {
+        let mut kernel = StatementKernel {
+            inner: kernel_impl::StatementKernel::default(),
+            next_receipt_number: MAX_DURABLE_RECEIPT_NUMBER,
+        };
+
+        let error = kernel
+            .ingest(candidate("statement-single-exhaustion"))
+            .expect_err("single ingest must not issue an unpersistable receipt");
+
+        assert_eq!(
+            error,
+            IngestionError::InvalidEvidence {
+                field: "receipt_sequence"
+            }
+        );
+        assert!(kernel.receipts().is_empty());
+        assert!(kernel.occurrences().is_empty());
+    }
+
+    #[test]
+    fn nonempty_batch_rejects_exhausted_durable_receipt_sequence() {
+        let mut kernel = StatementKernel {
+            inner: kernel_impl::StatementKernel::default(),
+            next_receipt_number: MAX_DURABLE_RECEIPT_NUMBER,
+        };
+
+        let error = kernel
+            .ingest_batch(
+                tenant(),
+                XapiVersion::V2_0,
+                br#"[{"id":"statement-batch-exhaustion"}]"#.to_vec(),
+                vec![candidate("statement-batch-exhaustion")],
+            )
+            .expect_err("batch ingest must not issue an unpersistable receipt");
+
+        assert_eq!(
+            error,
+            IngestionError::InvalidEvidence {
+                field: "receipt_sequence"
             }
         );
         assert!(kernel.receipts().is_empty());
