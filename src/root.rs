@@ -54,11 +54,9 @@ impl StatementKernel {
         if !raw_request_bytes.is_empty() {
             self.ensure_receipt_capacity()?;
         }
-        let result = self.inner.begin_request(
-            tenant_key,
-            received_xapi_version,
-            raw_request_bytes,
-        );
+        let result = self
+            .inner
+            .begin_request(tenant_key, received_xapi_version, raw_request_bytes);
         self.sync_receipt_sequence();
         result
     }
@@ -171,11 +169,8 @@ impl StatementKernel {
         voiding_statement_key: &str,
         voided_statement_key: &str,
     ) -> Result<(), IngestionError> {
-        self.inner.record_voiding(
-            tenant_key,
-            voiding_statement_key,
-            voided_statement_key,
-        )
+        self.inner
+            .record_voiding(tenant_key, voiding_statement_key, voided_statement_key)
     }
 
     /// Returns all non-destructive voiding relations.

@@ -38,7 +38,8 @@ fn conflicting_batch_records_every_submitted_item_without_partial_acceptance() {
         .ingest_batch(
             TenantKey::new("tenant-alpha").unwrap(),
             XapiVersion::V2_0,
-            br#"[{"id":"statement-new-a"},{"id":"statement-existing"},{"id":"statement-new-b"}]"#.to_vec(),
+            br#"[{"id":"statement-new-a"},{"id":"statement-existing"},{"id":"statement-new-b"}]"#
+                .to_vec(),
             vec![
                 candidate(
                     "tenant-alpha",
@@ -78,9 +79,15 @@ fn conflicting_batch_records_every_submitted_item_without_partial_acceptance() {
             .collect::<Vec<_>>(),
         vec![0, 1, 2]
     );
-    assert_eq!(batch_occurrences[0].status(), IngestionStatus::BatchRejected);
+    assert_eq!(
+        batch_occurrences[0].status(),
+        IngestionStatus::BatchRejected
+    );
     assert_eq!(batch_occurrences[1].status(), IngestionStatus::Conflict);
-    assert_eq!(batch_occurrences[2].status(), IngestionStatus::BatchRejected);
+    assert_eq!(
+        batch_occurrences[2].status(),
+        IngestionStatus::BatchRejected
+    );
     assert!(batch_occurrences
         .iter()
         .all(|occurrence| occurrence.receipt_number() == batch_occurrences[0].receipt_number()));
@@ -146,7 +153,10 @@ fn every_stored_conflict_in_a_rejected_batch_is_classified_as_conflict() {
     let batch_occurrences = &kernel.occurrences()[baseline_occurrence_count..];
     assert_eq!(batch_occurrences.len(), 3);
     assert_eq!(batch_occurrences[0].status(), IngestionStatus::Conflict);
-    assert_eq!(batch_occurrences[1].status(), IngestionStatus::BatchRejected);
+    assert_eq!(
+        batch_occurrences[1].status(),
+        IngestionStatus::BatchRejected
+    );
     assert_eq!(batch_occurrences[2].status(), IngestionStatus::Conflict);
     assert!(batch_occurrences
         .iter()
@@ -232,7 +242,10 @@ fn context_mismatch_records_every_item_as_batch_rejected() {
         )
         .expect_err("cross-context item rejects the whole request");
 
-    assert!(matches!(error, IngestionError::ReceiptContextMismatch { .. }));
+    assert!(matches!(
+        error,
+        IngestionError::ReceiptContextMismatch { .. }
+    ));
     assert_eq!(kernel.statement_count(), 0);
     assert_eq!(kernel.receipts().len(), 1);
     assert_eq!(kernel.occurrences().len(), 2);

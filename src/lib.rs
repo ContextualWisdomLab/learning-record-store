@@ -508,11 +508,8 @@ impl StatementKernel {
                 field: "statement_batch",
             });
         }
-        let receipt_number = self.begin_request(
-            tenant_key.clone(),
-            received_xapi_version,
-            raw_request_bytes,
-        )?;
+        let receipt_number =
+            self.begin_request(tenant_key.clone(), received_xapi_version, raw_request_bytes)?;
 
         if candidates.iter().any(|candidate| {
             candidate.tenant_key != tenant_key

@@ -38,7 +38,10 @@ fn first_ingest_preserves_exact_source_evidence() {
     assert_eq!(outcome.statement().raw_statement_bytes(), raw);
     assert_eq!(outcome.statement().tenant_key().as_str(), "tenant-alpha");
     assert_eq!(outcome.statement().statement_key(), "statement-001");
-    assert_eq!(outcome.statement().received_xapi_version(), XapiVersion::V2_0);
+    assert_eq!(
+        outcome.statement().received_xapi_version(),
+        XapiVersion::V2_0
+    );
     assert_eq!(
         outcome.statement().statement_comparison_version(),
         "xapi-2.0-statement-comparison/v1"
@@ -88,7 +91,10 @@ fn equivalent_replay_reuses_canonical_statement_and_keeps_new_receipt() {
     assert_eq!(accepted.statement(), replayed.statement());
     assert_eq!(kernel.statement_count(), 1);
     assert_eq!(kernel.receipts().len(), 2);
-    assert_eq!(kernel.receipts()[1].raw_request_bytes(), replay_raw.as_bytes());
+    assert_eq!(
+        kernel.receipts()[1].raw_request_bytes(),
+        replay_raw.as_bytes()
+    );
     assert_eq!(kernel.occurrences().len(), 2);
     assert_eq!(kernel.occurrences()[1].status(), IngestionStatus::Replayed);
 }
@@ -113,13 +119,18 @@ fn conflicting_replay_fails_closed_without_overwriting_canonical_evidence() {
     );
 
     kernel.ingest(original).expect("first ingest accepted");
-    let error = kernel.ingest(conflict).expect_err("conflict must fail closed");
+    let error = kernel
+        .ingest(conflict)
+        .expect_err("conflict must fail closed");
 
     assert!(matches!(error, IngestionError::StatementConflict { .. }));
     assert!(error.to_string().contains("statement conflict"));
     assert_eq!(kernel.statement_count(), 1);
     assert_eq!(kernel.receipts().len(), 2);
-    assert_eq!(kernel.receipts()[1].raw_request_bytes(), conflict_raw.as_bytes());
+    assert_eq!(
+        kernel.receipts()[1].raw_request_bytes(),
+        conflict_raw.as_bytes()
+    );
     assert_eq!(kernel.occurrences().len(), 2);
     assert_eq!(kernel.occurrences()[1].status(), IngestionStatus::Conflict);
     assert_eq!(
@@ -244,7 +255,10 @@ fn invalid_identity_and_evidence_fail_closed() {
         b"comparison".to_vec(),
     )
     .expect_err("blank statement rejected");
-    assert_eq!(statement_error.to_string(), "invalid identity: statement_key");
+    assert_eq!(
+        statement_error.to_string(),
+        "invalid identity: statement_key"
+    );
 
     let raw_error = StatementCandidate::new(
         tenant.clone(),
@@ -254,7 +268,10 @@ fn invalid_identity_and_evidence_fail_closed() {
         b"comparison".to_vec(),
     )
     .expect_err("empty raw evidence rejected");
-    assert_eq!(raw_error.to_string(), "invalid evidence: raw_statement_bytes");
+    assert_eq!(
+        raw_error.to_string(),
+        "invalid evidence: raw_statement_bytes"
+    );
 
     let comparison_error = StatementCandidate::new(
         tenant,
@@ -264,7 +281,10 @@ fn invalid_identity_and_evidence_fail_closed() {
         Vec::new(),
     )
     .expect_err("empty comparator rejected");
-    assert_eq!(comparison_error.to_string(), "invalid evidence: comparison_bytes");
+    assert_eq!(
+        comparison_error.to_string(),
+        "invalid evidence: comparison_bytes"
+    );
 }
 
 #[test]
@@ -274,7 +294,10 @@ fn missing_voiding_source_or_target_fails_closed() {
     let source_error = kernel
         .record_voiding(&tenant, "missing-voiding", "missing-target")
         .expect_err("missing source cannot be linked");
-    assert_eq!(source_error.to_string(), "statement not found: missing-voiding");
+    assert_eq!(
+        source_error.to_string(),
+        "statement not found: missing-voiding"
+    );
 
     kernel
         .ingest(candidate(
@@ -288,5 +311,8 @@ fn missing_voiding_source_or_target_fails_closed() {
     let target_error = kernel
         .record_voiding(&tenant, "statement-voiding", "missing-target")
         .expect_err("missing target cannot be linked");
-    assert_eq!(target_error.to_string(), "statement not found: missing-target");
+    assert_eq!(
+        target_error.to_string(),
+        "statement not found: missing-target"
+    );
 }

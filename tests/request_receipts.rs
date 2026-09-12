@@ -2,11 +2,7 @@ use learning_record_store::{
     IngestionError, IngestionStatus, StatementCandidate, StatementKernel, TenantKey, XapiVersion,
 };
 
-fn candidate(
-    tenant: &TenantKey,
-    statement_key: &str,
-    version: XapiVersion,
-) -> StatementCandidate {
+fn candidate(tenant: &TenantKey, statement_key: &str, version: XapiVersion) -> StatementCandidate {
     candidate_with_comparison(
         tenant,
         statement_key,
@@ -137,7 +133,10 @@ fn batch_conflict_retains_receipt_without_partial_canonical_acceptance() {
     assert_eq!(rejected_occurrences.len(), 2);
     assert_eq!(rejected_occurrences[0].receipt_number(), receipt_number);
     assert_eq!(rejected_occurrences[0].request_statement_index(), 0);
-    assert_eq!(rejected_occurrences[0].status(), IngestionStatus::BatchRejected);
+    assert_eq!(
+        rejected_occurrences[0].status(),
+        IngestionStatus::BatchRejected
+    );
     assert_eq!(rejected_occurrences[1].receipt_number(), receipt_number);
     assert_eq!(rejected_occurrences[1].request_statement_index(), 1);
     assert_eq!(rejected_occurrences[1].status(), IngestionStatus::Conflict);
@@ -184,12 +183,7 @@ fn empty_batch_fails_before_creating_request_receipt() {
     let tenant = TenantKey::new("tenant-alpha").expect("tenant key");
 
     let error = kernel
-        .ingest_batch(
-            tenant,
-            XapiVersion::V2_0,
-            b"[]".to_vec(),
-            Vec::new(),
-        )
+        .ingest_batch(tenant, XapiVersion::V2_0, b"[]".to_vec(), Vec::new())
         .expect_err("empty batch rejected");
 
     assert_eq!(error.to_string(), "invalid evidence: statement_batch");
@@ -218,7 +212,10 @@ fn batch_context_mismatch_retains_request_but_changes_no_statement_state() {
     assert_eq!(kernel.statement_count(), 0);
     assert_eq!(kernel.receipts().len(), 1);
     assert_eq!(kernel.occurrences().len(), 1);
-    assert_eq!(kernel.occurrences()[0].status(), IngestionStatus::BatchRejected);
+    assert_eq!(
+        kernel.occurrences()[0].status(),
+        IngestionStatus::BatchRejected
+    );
     assert_eq!(kernel.occurrences()[0].tenant_key(), &alpha);
 
     let version_error = kernel
@@ -226,11 +223,7 @@ fn batch_context_mismatch_retains_request_but_changes_no_statement_state() {
             alpha.clone(),
             XapiVersion::V2_0,
             br#"[{"id":"statement-alpha"}]"#.to_vec(),
-            vec![candidate(
-                &alpha,
-                "statement-alpha",
-                XapiVersion::V1_0_3,
-            )],
+            vec![candidate(&alpha, "statement-alpha", XapiVersion::V1_0_3)],
         )
         .expect_err("batch version mismatch rejected");
     assert!(matches!(
@@ -351,11 +344,7 @@ fn unknown_receipt_fails_closed() {
     let mut kernel = StatementKernel::default();
     let tenant = TenantKey::new("tenant-alpha").expect("tenant key");
     let error = kernel
-        .ingest_at_receipt(
-            42,
-            0,
-            candidate(&tenant, "statement-a", XapiVersion::V2_0),
-        )
+        .ingest_at_receipt(42, 0, candidate(&tenant, "statement-a", XapiVersion::V2_0))
         .expect_err("unknown receipt rejected");
     assert_eq!(
         error,
