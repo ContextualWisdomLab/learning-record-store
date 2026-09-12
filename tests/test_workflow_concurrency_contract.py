@@ -8,3 +8,6 @@ assert "branches:" not in pull_request_block
 assert "${{ github.workflow }}-${{ github.repository }}-" in workflow
 assert "github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id" in workflow
 assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
+assert '"--json"' in workflow
+assert '"--output-path"' in workflow
+assert 'line_total["covered"] != line_total["count"]' in workflow

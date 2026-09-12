@@ -318,4 +318,42 @@ jobs:
         run: cargo install cargo-llvm-cov --version 0.8.6 --locked
 
       - name: Enforce complete line coverage
-        run: cargo llvm-cov --all-targets --fail-under-lines 100 --show-missing-lines
+        shell: python3 {0}
+        run: |
+          import json
+          import subprocess
+
+          subprocess.run(
+              [
+                  "cargo",
+                  "llvm-cov",
+                  "--all-targets",
+                  "--json",
+                  "--output-path",
+                  "coverage.json",
+              ],
+              check=True,
+          )
+          coverage = json.loads(open("coverage.json", encoding="utf-8").read())["data"][0]
+          for source_file in coverage["files"]:
+              line_summary = source_file["summary"]["lines"]
+              if line_summary["covered"] == line_summary["count"]:
+                  continue
+              missed_lines = sorted(
+                  {
+                      segment[0]
+                      for segment in source_file["segments"]
+                      if segment[2] == 0
+                      and segment[3]
+                      and segment[4]
+                      and not (len(segment) > 5 and segment[5])
+                  }
+              )
+              print(f"{source_file['filename']}: uncovered lines {missed_lines}")
+
+          line_total = coverage["totals"]["lines"]
+          if line_total["covered"] != line_total["count"]:
+              raise SystemExit(
+                  "complete line coverage required: "
+                  f"{line_total['covered']}/{line_total['count']} lines covered"
+              )
