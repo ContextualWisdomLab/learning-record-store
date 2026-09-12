@@ -67,6 +67,7 @@ jobs:
               Path("migrations/0002_database_principal_boundary.sql"),
               Path("migrations/0003_batch_rejection_outcome.sql"),
               Path("migrations/0004_atomic_statement_batch.sql"),
+              Path("migrations/rollback_statement_evidence.sql"),
               Path("docs/PRD.md"),
               Path("docs/TRD.md"),
               Path("docs/index.md"),

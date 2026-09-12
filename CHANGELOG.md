@@ -28,6 +28,7 @@
 - Rust pinned to the exact 1.98.1 toolchain proven by hosted CI while retaining the zero-uncovered-unique-source-line coverage gate.
 - Rust and concurrent PostgreSQL regression cases preventing a voiding Statement from becoming another voiding Statement's target.
 - Item and batch PostgreSQL regression cases rejecting incompatible received-xAPI/comparison-algorithm version pairs before durable mutation.
+- Empty pre-release schema rollback/reapply evidence plus a nonempty fail-closed guard that preserves retained learning records and tenant bindings.
 - Product-first README, Apache-2.0 repository license, public documentation landing source, and clarified document-resource revision/idempotency semantics carried forward from the foundation branch without rewriting stack history.
 
 ### Changed
