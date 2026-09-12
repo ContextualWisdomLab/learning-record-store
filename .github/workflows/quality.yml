@@ -345,7 +345,6 @@ jobs:
                       for segment in source_file["segments"]
                       if segment[2] == 0
                       and segment[3]
-                      and segment[4]
                       and not (len(segment) > 5 and segment[5])
                   }
               )
