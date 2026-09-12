@@ -4,7 +4,7 @@ Initial standards baseline for implementation and conformance work:
 
 - Institute of Electrical and Electronics Engineers. (2023). *IEEE standard for learning technology—JavaScript Object Notation (JSON) data model format and Representational State Transfer (RESTful) web service for learner experience data tracking and access (IEEE Std 9274.1.1-2023).* https://standards.ieee.org/ieee/9274.1.1/7321/
 - International Organization for Standardization, International Electrotechnical Commission, & Institute of Electrical and Electronics Engineers. (2025). *Learning technology—JavaScript Object Notation data model format and RESTful web service for learner experience data tracking and access—Part 1-1: xAPI using JSON serialization and RESTful data transport (ISO/IEC/IEEE 39274-1-1:2025).* https://standards.ieee.org/ieee/39274-1-1/12268/
-- Advanced Distributed Learning Initiative. (n.d.). *Experience API specification, version 2.0.* https://github.com/adlnet/xAPI-Spec
+- Advanced Distributed Learning Initiative. (n.d.). *Experience API specification* (xAPI 1.0.3, Part 3, §3.3 Versioning). https://github.com/adlnet/xAPI-Spec/blob/master/xAPI-Communication.md
 - Institute of Electrical and Electronics Engineers. (2023). *9274.1.1 xAPI Base Standard for Content.* https://opensource.ieee.org/xapi/xapi-base-standard-documentation/-/blob/24586e13b897697537fb73b9818d86ba403ab787/9274.1.1%20xAPI%20Base%20Standard%20for%20Content.md
 - Aviation Industry CBT Committee. (2016). *cmi5 specification profile for xAPI: Quartz, 1st edition.* https://github.com/AICC/CMI-5_Spec_Current/tree/quartz — compatibility surface based on xAPI 1.0.3.
 

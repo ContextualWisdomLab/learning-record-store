@@ -49,7 +49,7 @@ For a single Statement item, `persist_statement_occurrence` must:
 4. derive `request_content_hash` from retained raw request bytes and `content_hash` from retained comparison bytes inside PostgreSQL so a caller cannot persist inconsistent immutable digests;
 5. persist the immutable `ingestion_receipt` before resolving canonical identity;
 6. insert exactly one `statement_record` when absent or compare the existing immutable version/comparator evidence when present;
-7. return `replayed` only for the same received xAPI version, comparison algorithm version, derived digest and comparison bytes;
+7. return `replayed` only for the same canonical xAPI protocol surface, comparison algorithm version, derived digest and comparison bytes while retaining the exact received request label on its receipt;
 8. otherwise insert a `statement_ingestion_item` with `conflict` and no resolved canonical key, preserving request evidence while leaving the canonical Statement unchanged;
 9. insert `accepted`/`replayed` occurrences with a composite foreign key to the canonical Statement;
 10. return the receipt and outcome without raising a domain-conflict exception. The application commits this transaction first and only then maps `conflict` to the protocol error response so audit evidence is not rolled back.
@@ -72,7 +72,7 @@ This decision follows PostgreSQL's documented distinction between `session_user`
 
 ## Version and compatibility boundary
 
-xAPI 2.0 is canonical. The controlled SQL writers accept IEEE-defined request labels `2.0` and `2.0.0` for the same `xapi-2.0-statement-comparison/v1` surface. A receipt retains the exact validated request label; a canonical Statement stores `2.0.0`, so equivalent evidence received through either label replays instead of conflicting. Unknown labels and cross-surface comparison identifiers still fail before receipt creation. xAPI 1.0.3 exists as an explicit compatibility surface for cmi5 Quartz. The Rust kernel currently carries only the normalized protocol surface; the future HTTP/repository adapter must retain the exact validated header on the durable receipt. Compatibility transformations belong to `compatibility_adapter` and retain source/target version, converter version, output digest, validation status, provenance reference, and immutable artifact bytes outside canonical Statement identity.
+xAPI 2.0 is canonical. The controlled SQL writers accept IEEE-defined request labels `2.0` and `2.0.0` for the same `xapi-2.0-statement-comparison/v1` surface. A receipt retains the exact validated request label; a canonical Statement stores `2.0.0`, so equivalent evidence received through either label replays instead of conflicting. xAPI 1.0.3 exists as an explicit compatibility surface for cmi5 Quartz. ADL xAPI 1.0.3 requires `1.0` to be processed as `1.0.0` and valid `1.0.x` request labels to be accepted; those labels use `xapi-1.0.3-statement-comparison/v1`, remain exact on receipts, and canonicalize to stable data-model label `1.0.0` on Statements. Unknown, malformed, leading-zero patch, and cross-surface comparison pairs fail before receipt creation. The Rust kernel currently carries only normalized protocol surfaces; the future HTTP/repository adapter must retain the exact validated header on the durable receipt. Compatibility transformations belong to `compatibility_adapter` and retain source/target version, converter version, output digest, validation status, provenance reference, and immutable artifact bytes outside canonical Statement identity.
 
 ## Verification
 

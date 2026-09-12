@@ -35,6 +35,7 @@
 
 ### Changed
 
+- Corrected xAPI 1.0 compatibility-version handling: `1.0` and valid `1.0.x` request labels use the reviewed xAPI 1.0.3 comparison implementation, receipts retain the exact received label, and canonical Statements store the stable `1.0.0` data-model label.
 - Corrected xAPI 2.0 request-version handling: both IEEE-defined `2.0` and `2.0.0` inputs use the `2.0.0` comparison surface, while each receipt retains its exact received header and canonical Statements store `2.0.0`.
 
 - Hardened exact-head bootstrap validation, statement identity, attachment digests, and compatibility-artifact provenance so conflicting evidence fails closed and transformed outputs remain auditable without becoming canonical learning evidence.
