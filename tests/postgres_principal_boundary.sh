@@ -266,6 +266,11 @@ SQL
 voiding_logs="$(mktemp -d)"
 trap 'rm -rf "$voiding_logs"' EXIT
 
+psql -v ON_ERROR_STOP=1 <<'SQL'
+GRANT INSERT ON voiding_relation TO lrs_tenant_alpha;
+SQL
+
+PGUSER=lrs_tenant_alpha PGPASSWORD=lrs-alpha-test \
 psql -v ON_ERROR_STOP=1 >"$voiding_logs/first.log" 2>&1 <<'SQL' &
 BEGIN;
 INSERT INTO voiding_relation (tenant_key, voiding_statement_key, voided_statement_key)
@@ -276,7 +281,8 @@ SQL
 first_voiding_pid=$!
 sleep 0.2
 
-if psql -v ON_ERROR_STOP=1 >"$voiding_logs/second.log" 2>&1 <<'SQL'
+if PGUSER=lrs_tenant_alpha PGPASSWORD=lrs-alpha-test \
+    psql -v ON_ERROR_STOP=1 >"$voiding_logs/second.log" 2>&1 <<'SQL'
 INSERT INTO voiding_relation (tenant_key, voiding_statement_key, voided_statement_key)
 VALUES ('tenant-alpha', 'concurrent-voiding-c', 'concurrent-voiding-a');
 SQL
@@ -308,6 +314,10 @@ SQL
   echo "expected one valid concurrent voiding relation, got: $voiding_relation_count" >&2
   exit 1
 }
+
+psql -v ON_ERROR_STOP=1 <<'SQL'
+REVOKE INSERT ON voiding_relation FROM lrs_tenant_alpha;
+SQL
 
 security_definer_count="$(psql -At <<'SQL'
 SELECT count(*)
