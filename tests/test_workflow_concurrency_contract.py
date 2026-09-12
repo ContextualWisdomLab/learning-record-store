@@ -74,13 +74,26 @@ require(
     "migration 0002 must define the shared lock-key derivation",
 )
 
-# Rollback must establish its exclusion barrier before observing emptiness.
+# Rollback must establish its exclusion barrier over every removable relation before observing
+# emptiness. Keep the table list explicit so removing an otherwise unexercised relation fails CI.
+rollback_lock_barrier = rollback_migration.split("DO $$", 1)[0]
 require(
-    "LOCK TABLE\n    tenant_partition," in rollback_migration
-    and "IN ACCESS EXCLUSIVE MODE;" in rollback_migration
-    and rollback_migration.index("LOCK TABLE") < rollback_migration.index("IF EXISTS"),
-    "rollback must lock every evidence relation before its emptiness check",
+    "LOCK TABLE" in rollback_lock_barrier
+    and "IN ACCESS EXCLUSIVE MODE;" in rollback_lock_barrier,
+    "rollback must establish an ACCESS EXCLUSIVE table-lock barrier",
 )
+for relation_name in (
+    "tenant_partition",
+    "tenant_database_principal",
+    "ingestion_receipt",
+    "statement_record",
+    "statement_ingestion_item",
+    "voiding_relation",
+):
+    require(
+        relation_name in rollback_lock_barrier,
+        f"rollback lock barrier must include {relation_name}",
+    )
 
 # The public error contract includes self-reference and opposite-role conflicts.
 require(
