@@ -113,7 +113,6 @@ fn a_voiding_statement_cannot_become_another_voiding_target() {
     assert_eq!(kernel.voiding_relations().len(), 1);
 }
 
-
 #[test]
 fn ordinary_statement_cannot_authorize_a_voiding_relation() {
     let mut kernel = StatementKernel::default();
