@@ -35,41 +35,47 @@ fi
   exit 1
 }
 
-before_shorthand_receipts="$(psql -At -c "SELECT count(*) FROM ingestion_receipt WHERE tenant_key = 'tenant-alpha';")"
-before_shorthand_statements="$(psql -At -c "SELECT count(*) FROM statement_record WHERE tenant_key = 'tenant-alpha';")"
-if shorthand_error="$({ alpha_psql <<'SQL'
-\set VERBOSITY verbose
-SELECT *
+shorthand_batch="$(alpha_psql -At -F '|' <<'SQL'
+SELECT request_statement_index, persistence_outcome, persisted_statement_key
 FROM persist_statement_batch(
     'tenant-alpha',
     '2.0',
-    convert_to('[{"id":"non-normative-batch-version"}]', 'UTF8'),
-    ARRAY['non-normative-batch-version'],
+    convert_to('[{"id":"two-zero-batch-version"}]', 'UTF8'),
+    ARRAY['two-zero-batch-version'],
     ARRAY['xapi-2.0-statement-comparison/v1'],
-    ARRAY[convert_to('comparison-non-normative-batch-version', 'UTF8')],
-    ARRAY[convert_to('{"id":"non-normative-batch-version"}', 'UTF8')]
+    ARRAY[convert_to('comparison-two-zero-batch-version', 'UTF8')],
+    ARRAY[convert_to('{"id":"two-zero-batch-version"}', 'UTF8')]
 );
 SQL
-} 2>&1)"; then
-  echo "batch writer accepted the non-normative xAPI 2.0 shorthand" >&2
-  exit 1
-fi
-[[ "$shorthand_error" == *"22023"* ]] || {
-  echo "batch writer returned the wrong SQLSTATE for xAPI shorthand: $shorthand_error" >&2
+)"
+[[ "$shorthand_batch" == "0|accepted|two-zero-batch-version" ]] || {
+  echo "batch writer did not accept xAPI 2.0 as 2.0.0: $shorthand_batch" >&2
   exit 1
 }
-[[ "$shorthand_error" == *"xAPI version and Statement comparison version are incompatible"* ]] || {
-  echo "batch writer returned the wrong xAPI shorthand error: $shorthand_error" >&2
+[[ "$(psql -At -c "SELECT received_xapi_version FROM ingestion_receipt WHERE tenant_key = 'tenant-alpha' AND raw_request_bytes = convert_to('[{\"id\":\"two-zero-batch-version\"}]', 'UTF8');")" == "2.0" ]] || {
+  echo "batch writer did not retain the received xAPI 2.0 header" >&2
   exit 1
 }
-after_shorthand_receipts="$(psql -At -c "SELECT count(*) FROM ingestion_receipt WHERE tenant_key = 'tenant-alpha';")"
-after_shorthand_statements="$(psql -At -c "SELECT count(*) FROM statement_record WHERE tenant_key = 'tenant-alpha';")"
-[[ "$after_shorthand_receipts" == "$before_shorthand_receipts" ]] || {
-  echo "batch shorthand rejection leaked a receipt" >&2
+[[ "$(psql -At -c "SELECT received_xapi_version FROM statement_record WHERE tenant_key = 'tenant-alpha' AND statement_key = 'two-zero-batch-version';")" == "2.0.0" ]] || {
+  echo "batch writer did not normalize xAPI 2.0 canonical processing to 2.0.0" >&2
   exit 1
 }
-[[ "$after_shorthand_statements" == "$before_shorthand_statements" ]] || {
-  echo "batch shorthand rejection mutated canonical statements" >&2
+
+canonical_batch_replay="$(alpha_psql -At -F '|' <<'SQL'
+SELECT request_statement_index, persistence_outcome, persisted_statement_key
+FROM persist_statement_batch(
+    'tenant-alpha',
+    '2.0.0',
+    convert_to('[{"id":"two-zero-batch-version"}]', 'UTF8'),
+    ARRAY['two-zero-batch-version'],
+    ARRAY['xapi-2.0-statement-comparison/v1'],
+    ARRAY[convert_to('comparison-two-zero-batch-version', 'UTF8')],
+    ARRAY[convert_to('{"id":"two-zero-batch-version"}', 'UTF8')]
+);
+SQL
+)"
+[[ "$canonical_batch_replay" == "0|replayed|two-zero-batch-version" ]] || {
+  echo "batch writer did not treat xAPI 2.0 and 2.0.0 as the same protocol surface: $canonical_batch_replay" >&2
   exit 1
 }
 
