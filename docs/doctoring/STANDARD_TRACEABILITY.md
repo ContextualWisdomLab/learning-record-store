@@ -15,7 +15,7 @@
 
 This file is the bootstrap traceability ledger for the Learning Record Store. It records standards ownership and the evidence that must exist before this repository makes an implementation or conformance claim. Documentation alone is not conformance evidence.
 
-Primary-source status was rechecked on 2026-09-02. IEEE 9274.1.1-2023 remains an active xAPI base standard, and ISO/IEC/IEEE 39274-1-1:2025 remains the published international adoption. cmi5 Quartz remains a separate xAPI 1.0.3 compatibility surface; it is not evidence that an xAPI 2.0 implementation conforms to cmi5.
+Primary-source status was rechecked on 2026-09-02. IEEE 9274.1.1-2023 remains an active xAPI base standard, and ISO/IEC/IEEE 39274-1-1:2025 remains the published international adoption. cmi5 Quartz remains a separate xAPI 1.0.3 compatibility surface; it is not evidence that an xAPI 2.0 implementation conforms to cmi5. The official IEEE xAPI 2.0 content examples use the exact `X-Experience-API-Version: 2.0.0` value, so the Rust and PostgreSQL boundary rejects the shorthand `2.0` instead of silently normalizing provenance.
 
 ## Normative surface map
 
