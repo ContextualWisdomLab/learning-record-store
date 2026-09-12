@@ -43,7 +43,8 @@ The Rust kernel represents normalized Statement protocol surfaces: `XapiVersion:
 - Test-only RED run 34702148283: the batch writer rejected required `1.0` input at the shared persistence mapping boundary.
 - Implementation run 34702333379: item and batch fixtures accepted `1.0`/valid `1.0.x`, retained exact receipt labels, canonicalized Statements to `1.0.0`, proved alias replay, and rejected a malformed leading-zero patch.
 - Test-only RED run 34703770760: the Rust public label still returned `1.0.3` while PostgreSQL and this decision required canonical Statement label `1.0.0`; seven kernel tests passed and the label contract failed with the exact mismatch.
-- Final documentation-head GREEN remains required before this Proposed decision can advance.
+- Implementation run 34703937618: all six PostgreSQL suites and 35 Rust tests passed after aligning the Rust canonical label, with formatting, Clippy, warning-free rustdoc, and zero uncovered owned source lines.
+- Final review-contract head remains subject to exact-head GREEN and qualifying review before this Proposed decision can advance.
 
 ## Effects and risks
 

@@ -5,10 +5,9 @@ LOCK TABLE
     tenant_database_principal,
     ingestion_receipt,
     statement_record,
-    statement_ingestion_item
+    statement_ingestion_item,
+    voiding_relation
 IN ACCESS EXCLUSIVE MODE;
-
--- Mutation sentinel: voiding_relation must be inside the lock clause, not merely named here.
 
 DO $$
 BEGIN

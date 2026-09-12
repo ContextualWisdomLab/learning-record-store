@@ -24,6 +24,7 @@
 - Product and technical requirements for the first executable commercialization slice.
 - Exact-head Rust formatting, test, Clippy, rustdoc, 100% line-coverage, PostgreSQL invariant, transactional race, database-principal, batch-outcome, and shared-receipt batch gates, including pull requests stacked on non-default branches.
 - A workflow regression contract that prevents stacked pull requests from silently losing exact-head quality checks.
+- Review-contract hardening that verifies the rollback SQLSTATE, scopes required relation names to the actual `LOCK TABLE` clause, and proves malformed xAPI 1.0 item/batch rejection creates no receipt, occurrence, or canonical Statement for every submitted item.
 - Self-contained PostgreSQL fixtures that reset test schema/roles and apply their own migration stage, with reverse-order CI proving no suite inherits hidden predecessor state.
 - Rust pinned to the exact 1.98.1 toolchain proven by hosted CI while retaining the zero-uncovered-unique-source-line coverage gate.
 - Rust and concurrent PostgreSQL regression cases preventing a voiding Statement from becoming another voiding Statement's target.
