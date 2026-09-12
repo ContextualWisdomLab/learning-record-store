@@ -82,7 +82,7 @@ BEGIN;
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-recovery',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"concurrent-recovery-statement"}', 'UTF8'),
     0,
     'concurrent-recovery-statement',
@@ -174,7 +174,7 @@ recovered_outcome="$({
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-recovery',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"recovered-statement"}', 'UTF8'),
     0,
     'recovered-statement',
