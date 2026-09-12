@@ -5,9 +5,10 @@ LOCK TABLE
     tenant_database_principal,
     ingestion_receipt,
     statement_record,
-    statement_ingestion_item,
-    voiding_relation
+    statement_ingestion_item
 IN ACCESS EXCLUSIVE MODE;
+
+-- Mutation sentinel: voiding_relation must be inside the lock clause, not merely named here.
 
 DO $$
 BEGIN
@@ -18,7 +19,7 @@ BEGIN
        OR EXISTS (SELECT 1 FROM statement_ingestion_item)
        OR EXISTS (SELECT 1 FROM voiding_relation) THEN
         RAISE EXCEPTION 'refusing rollback while learning record evidence or tenant bindings exist'
-            USING ERRCODE = '55001';
+            USING ERRCODE = '55000';
     END IF;
 END
 $$;
