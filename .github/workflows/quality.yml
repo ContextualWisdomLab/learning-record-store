@@ -298,9 +298,9 @@ jobs:
         run: bash tests/postgres_evidence.sh
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # pinned action
         with:
-          toolchain: stable
+          toolchain: 1.98.1
           components: rustfmt, clippy, llvm-tools-preview
 
       - name: Check formatting
@@ -321,4 +321,4 @@ jobs:
         run: cargo install cargo-llvm-cov --version 0.8.6 --locked
 
       - name: Enforce complete line coverage
-        run: cargo llvm-cov --all-targets --text --show-missing-lines --fail-uncovered-lines 0
+        run: cargo llvm-cov --all-targets --text --show-missing-lines --fail-under-lines 100 --fail-uncovered-lines 0

@@ -49,7 +49,7 @@ Initial entities:
 - `compatibility_artifact`
 - `compatibility_transform`
 
-The executable migration set currently implements `tenant_partition`, `tenant_database_principal`, `ingestion_receipt`, `statement_ingestion_item`, `statement_record`, and `voiding_relation`. It also defines `authorized_tenant_key()` and `persist_statement_occurrence`. The remaining entities are planned protocol surfaces and must not be represented as implemented until migrations and tests exist.
+The PR head's executable migration set currently implements `tenant_partition`, `tenant_database_principal`, `ingestion_receipt`, `statement_ingestion_item`, `statement_record`, and `voiding_relation`. It also defines `authorized_tenant_key()`, `statement_advisory_lock_key()`, `persist_statement_occurrence`, and the Proposed `persist_statement_batch` primitive. None is an approved release contract until the stack is integrated through the protected branch. The remaining entities are planned protocol surfaces and must not be represented as implemented until migrations and tests exist.
 
 `tenant_database_principal` is an administrator-controlled mapping from `database_principal_name` to `tenant_key`. Its key is the PostgreSQL `session_user` that established the connection; application-supplied tenant values and freely writable custom GUCs are not accepted as authorization evidence. The mapping is not a customer-authored domain object and is not exposed through the learning-record API. The constrained `lrs_evidence_writer` function owner is `NOLOGIN`, non-superuser, non-`BYPASSRLS`, and is not an evidence-table owner, so forced RLS continues to evaluate tenant scope while the controlled function performs immutable writes.
 

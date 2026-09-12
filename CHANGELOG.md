@@ -25,6 +25,7 @@
 - Exact-head Rust formatting, test, Clippy, rustdoc, 100% line-coverage, PostgreSQL invariant, transactional race, database-principal, batch-outcome, and shared-receipt batch gates, including pull requests stacked on non-default branches.
 - A workflow regression contract that prevents stacked pull requests from silently losing exact-head quality checks.
 - Self-contained PostgreSQL fixtures that reset test schema/roles and apply their own migration stage, with reverse-order CI proving no suite inherits hidden predecessor state.
+- An aggregate 100% LLVM line-coverage threshold alongside the unique uncovered-source-line gate, with Rust pinned to the exact 1.98.1 toolchain proven by hosted CI.
 - Product-first README, Apache-2.0 repository license, public documentation landing source, and clarified document-resource revision/idempotency semantics carried forward from the foundation branch without rewriting stack history.
 
 ### Changed
@@ -40,4 +41,6 @@
 - Tightened PostgreSQL occurrence consistency so `accepted` and `replayed` rows cannot pass a CHECK constraint with a null canonical link under SQL three-valued logic, and privileged/manual inserts cannot store digests inconsistent with immutable request/comparison bytes.
 - Bound the public Rust kernel to PostgreSQL persistence widths: receipt issuance fails closed before signed `bigint` exhaustion, both batch and direct occurrence indexes stay within signed `integer`, and validated POST arrays must cross the kernel boundary as materialized vectors so complete preflight remains mandatory without generic iterator instantiations.
 - Unified controlled single-item and batch writes on the same transaction-scoped per-Statement advisory-lock protocol, acquired in deterministic order for batches, so an overlapping controlled writer cannot invalidate batch preflight without serializing unrelated tenant evidence.
+- Replaced undocumented `hashtext` advisory-lock inputs with one length-delimited SHA-256-derived signed `bigint` lock key shared by item and batch writers.
+- Split replacement CHECK-constraint installation from existing-row validation so migration 0003 does not retain an `ACCESS EXCLUSIVE` lock during its validation scan.
 - Downgraded ADR 0002 from Accepted to Proposed while its authorization implementation remains only on the unmerged writer stack; acceptance now requires current exact-head evidence and ordinary protected-branch integration.

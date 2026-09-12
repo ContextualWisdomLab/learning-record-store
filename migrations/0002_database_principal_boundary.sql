@@ -56,6 +56,40 @@ ALTER FUNCTION authorized_tenant_key() OWNER TO lrs_evidence_writer;
 REVOKE ALL ON FUNCTION authorized_tenant_key() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION authorized_tenant_key() TO PUBLIC;
 
+CREATE FUNCTION statement_advisory_lock_key(
+    p_tenant_key text,
+    p_statement_key text
+)
+RETURNS bigint
+LANGUAGE sql
+IMMUTABLE
+STRICT
+PARALLEL SAFE
+SET search_path = pg_catalog
+AS $$
+    SELECT
+        (get_byte(lock_digest, 0)::bigint << 56)
+        | (get_byte(lock_digest, 1)::bigint << 48)
+        | (get_byte(lock_digest, 2)::bigint << 40)
+        | (get_byte(lock_digest, 3)::bigint << 32)
+        | (get_byte(lock_digest, 4)::bigint << 24)
+        | (get_byte(lock_digest, 5)::bigint << 16)
+        | (get_byte(lock_digest, 6)::bigint << 8)
+        | get_byte(lock_digest, 7)::bigint
+    FROM (
+        SELECT pg_catalog.sha256(
+            pg_catalog.int8send(
+                octet_length(pg_catalog.convert_to(p_tenant_key, 'UTF8'))::bigint
+            )
+            || pg_catalog.convert_to(p_tenant_key, 'UTF8')
+            || pg_catalog.convert_to(p_statement_key, 'UTF8')
+        ) AS lock_digest
+    ) AS derived_lock;
+$$;
+
+ALTER FUNCTION statement_advisory_lock_key(text, text) OWNER TO lrs_evidence_writer;
+REVOKE ALL ON FUNCTION statement_advisory_lock_key(text, text) FROM PUBLIC;
+
 ALTER POLICY tenant_partition_scope_policy ON tenant_partition
     USING (tenant_key = authorized_tenant_key())
     WITH CHECK (tenant_key = authorized_tenant_key());
@@ -144,8 +178,7 @@ BEGIN
     END IF;
 
     PERFORM pg_catalog.pg_advisory_xact_lock(
-        pg_catalog.hashtext(p_tenant_key),
-        pg_catalog.hashtext(p_statement_key)
+        public.statement_advisory_lock_key(p_tenant_key, p_statement_key)
     );
 
     v_request_content_hash := pg_catalog.sha256(p_raw_request_bytes);

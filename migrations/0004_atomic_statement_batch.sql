@@ -141,8 +141,7 @@ BEGIN
         ORDER BY submitted_statement.statement_key
     LOOP
         PERFORM pg_catalog.pg_advisory_xact_lock(
-            pg_catalog.hashtext(p_tenant_key),
-            pg_catalog.hashtext(v_statement_key)
+            public.statement_advisory_lock_key(p_tenant_key, v_statement_key)
         );
     END LOOP;
 
