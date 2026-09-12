@@ -115,7 +115,7 @@ jobs:
           )
 
           expected_contract = {
-              "batch_duplicate_statement_id": "reject_before_persistence",
+              "batch_duplicate_statement_id": "record_rejected_occurrences_before_comparison",
               "canonical_xapi_surface": "2.0",
               "comparison_hash_algorithm": "SHA-256",
               "compatibility_artifact_authority": "provenance_only",

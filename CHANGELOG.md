@@ -18,10 +18,12 @@
 - Explicit durable `batch_rejected` outcome and PostgreSQL constraint tests for rejected POST-array item evidence, including successful-outcome fixtures that require a non-null canonical Statement link.
 - `persist_statement_batch`, a controlled PostgreSQL primitive for one-receipt/many-item validated POST-array persistence with deterministic per-Statement identity serialization, atomic canonical mutation, and durable `conflict`/`batch_rejected` occurrence evidence.
 - Real PostgreSQL shared-receipt batch transaction fixtures covering two-item acceptance, replay, conflict rejection without sibling leakage, canonical non-overwrite, and duplicate-identity fail-closed behavior.
+- Durable duplicate-batch rejection that preserves one immutable receipt and every submitted index as unresolved `batch_rejected` evidence without creating a canonical Statement.
 - ADR 0002 documenting the authenticated database-principal authorization boundary and its PostgreSQL/OWASP rationale.
 - Proposed ADR 0003 documenting per-Statement transaction serialization for atomic durable batches and explicitly rejecting tenant-wide/table-wide locks.
 - Product and technical requirements for the first executable commercialization slice.
 - Exact-head Rust formatting, test, Clippy, rustdoc, 100% line-coverage, PostgreSQL invariant, transactional race, database-principal, batch-outcome, and shared-receipt batch gates, including pull requests stacked on non-default branches.
+- A workflow regression contract that prevents stacked pull requests from silently losing exact-head quality checks.
 - Product-first README, Apache-2.0 repository license, public documentation landing source, and clarified document-resource revision/idempotency semantics carried forward from the foundation branch without rewriting stack history.
 
 ### Changed

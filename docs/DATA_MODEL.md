@@ -9,7 +9,7 @@ The following block is the machine-readable bootstrap contract consumed by exact
 <!-- lrs-bootstrap-contract:start -->
 ```json
 {
-  "batch_duplicate_statement_id": "reject_before_persistence",
+  "batch_duplicate_statement_id": "record_rejected_occurrences_before_comparison",
   "canonical_xapi_surface": "2.0",
   "comparison_hash_algorithm": "SHA-256",
   "compatibility_artifact_authority": "provenance_only",
@@ -57,7 +57,7 @@ The executable migration set currently implements `tenant_partition`, `tenant_da
 
 `statement_ingestion_item` is the tenant-scoped request-to-Statement occurrence relation. Its identity is `(tenant_key, receipt_number, request_statement_index)`, where `request_statement_index` is `0` for a single-Statement request and the zero-based array position for a POST batch. Each item records the submitted `statement_key`, comparison outcome, and—when the occurrence resolves successfully—the composite foreign key to the canonical `(tenant_key, statement_key)` in `statement_record`. Allowed outcomes are `accepted`, `replayed`, `conflict`, and `batch_rejected`. Accepted/replayed items must resolve to their submitted canonical key; `conflict` and `batch_rejected` remain unresolved. An idempotent retry therefore creates a new immutable receipt and occurrence row pointing to the existing canonical Statement; it never changes earlier receipt provenance.
 
-A rejected POST array still owns one occurrence per submitted zero-based index. If one item conflicts with existing canonical evidence, that item may be `conflict` while non-conflicting siblings are `batch_rejected`; request-level context or duplicate-identity rejection marks every submitted item `batch_rejected`. No rejected-batch item becomes canonical. The current migration set can represent these outcomes, but the durable shared-receipt multi-item repository transaction is not yet implemented. A lossless parser must preserve or locate exact source byte spans so the original batch remains auditable.
+A rejected POST array still owns one occurrence per submitted zero-based index. If one item conflicts with existing canonical evidence, that item may be `conflict` while non-conflicting siblings are `batch_rejected`; duplicate-identity rejection marks every submitted item `batch_rejected`. No rejected-batch item becomes canonical. Proposed migration 0004 implements the durable shared-receipt transaction for a validated array, including duplicate identities; malformed shape and request-context failures still require the repository adapter to preserve request evidence before invoking it. A lossless parser must preserve or locate exact source byte spans so the original batch remains auditable.
 
 `persist_statement_occurrence` is the item-level durable transaction primitive. It authorizes `p_tenant_key` against `authorized_tenant_key()` for the authenticated database principal, derives request and comparison digests from retained bytes, records a request receipt, resolves one canonical Statement identity through the primary-key conflict path, compares retained version/comparison evidence, and records the accepted/replayed/conflict occurrence before returning. Ordinary tenant principals do not require direct INSERT/UPDATE/DELETE privileges on immutable evidence tables.
 

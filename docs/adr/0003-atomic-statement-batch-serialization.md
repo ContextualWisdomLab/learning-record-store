@@ -15,7 +15,7 @@ The batch path must also remain correct when another controlled writer targets t
 - canonical Statement identity remains `(tenant_key, statement_key)`;
 - no tenant-wide or table-wide write lock is permitted;
 - conflicts must commit receipt and occurrence evidence rather than being converted into a transaction error that erases provenance;
-- duplicate Statement identities are rejected before durable batch mutation because duplicate/request-context validation belongs to the validated adapter boundary;
+- duplicate Statement identities are detected before canonical comparison and recorded as one rejected receipt with every submitted index;
 - all controlled single-item and batch writes must use the same serialization protocol;
 - ordinary tenant principals continue to lack direct immutable-evidence DML privileges;
 - exact-head PostgreSQL tests, review, and ordinary merge gates remain required before this proposal becomes accepted implementation evidence.
@@ -40,7 +40,7 @@ Selected for the current bounded persistence primitive. Controlled writers take 
 
 ## Decision
 
-Migration 0004 introduces `persist_statement_batch`, a fixed-search-path `SECURITY DEFINER` function owned by `lrs_evidence_writer`. The function accepts a fully materialized, validated, one-dimensional batch. It verifies tenant authorization and evidence shape, rejects duplicate Statement identities before receipt creation, acquires per-identity transaction advisory locks in deterministic order, creates exactly one `ingestion_receipt`, and re-reads canonical Statement state under those locks.
+Migration 0004 introduces `persist_statement_batch`, a fixed-search-path `SECURITY DEFINER` function owned by `lrs_evidence_writer`. The function accepts a fully materialized, validated, one-dimensional batch. It verifies tenant authorization and evidence shape. Duplicate Statement identities create exactly one rejected `ingestion_receipt` and one unresolved `batch_rejected` occurrence per submitted index, then return before canonical comparison or mutation. Unique batches acquire per-identity transaction advisory locks in deterministic order, create exactly one `ingestion_receipt`, and re-read canonical Statement state under those locks.
 
 If any item conflicts, no candidate becomes canonical. Conflicting items persist as `conflict`; all non-conflicting siblings persist as `batch_rejected`; every occurrence shares the same receipt. If no item conflicts, missing Statements are inserted and replay-equivalent Statements remain canonical; all occurrences share the same receipt. Migration 0002's single-item `persist_statement_occurrence` takes the same identity lock so the two controlled paths cannot race around one another.
 
@@ -54,7 +54,7 @@ A retry contains one previously accepted Statement with different comparison byt
 
 Two workers concurrently target an overlapping Statement identity. They serialize only on that identity, not the tenant as a whole; after the lock is acquired, the later worker observes the committed canonical state and derives replay/conflict behavior from that state.
 
-If a caller supplies duplicate Statement identities, malformed arrays, blank identities, empty evidence bytes, or an unauthorized tenant, the function fails closed before canonical mutation. Duplicate/request-shape evidence retention remains the adapter's responsibility until the repository API persists validated request receipts for those pre-persistence failures.
+If a caller supplies duplicate Statement identities, the function fails closed without canonical mutation and preserves every submitted position on one rejected receipt. Malformed arrays, blank identities, empty evidence bytes, or an unauthorized tenant still fail before receipt creation; their request evidence remains the adapter's responsibility.
 
 ## Risks and follow-up
 

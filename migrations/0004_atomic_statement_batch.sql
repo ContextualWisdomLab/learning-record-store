@@ -95,8 +95,44 @@ BEGIN
         SELECT count(DISTINCT statement_key)
         FROM unnest(p_statement_keys) AS submitted_statement(statement_key)
     ) THEN
-        RAISE EXCEPTION 'duplicate statement identity in batch request'
-            USING ERRCODE = '22023';
+        v_request_content_hash := pg_catalog.sha256(p_raw_request_bytes);
+        INSERT INTO public.ingestion_receipt (
+            tenant_key,
+            received_xapi_version,
+            raw_request_bytes,
+            request_content_hash
+        ) VALUES (
+            p_tenant_key,
+            p_received_xapi_version,
+            p_raw_request_bytes,
+            v_request_content_hash
+        )
+        RETURNING receipt_number INTO v_receipt_number;
+
+        FOR v_item_position IN 1..v_item_count LOOP
+            INSERT INTO public.statement_ingestion_item (
+                tenant_key,
+                receipt_number,
+                request_statement_index,
+                submitted_statement_key,
+                comparison_outcome,
+                resolved_statement_key
+            ) VALUES (
+                p_tenant_key,
+                v_receipt_number,
+                v_item_position - 1,
+                p_statement_keys[v_item_position],
+                'batch_rejected',
+                NULL
+            );
+
+            RETURN QUERY SELECT
+                v_receipt_number,
+                v_item_position - 1,
+                'batch_rejected'::text,
+                NULL::text;
+        END LOOP;
+        RETURN;
     END IF;
 
     FOR v_statement_key IN
