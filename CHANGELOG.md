@@ -35,6 +35,8 @@
 
 ### Changed
 
+- Corrected the canonical xAPI 2.0 request and persisted protocol label from the non-normative shorthand `2.0` to the exact `2.0.0`; the product surface remains named xAPI 2.0.
+
 - Hardened exact-head bootstrap validation, statement identity, attachment digests, and compatibility-artifact provenance so conflicting evidence fails closed and transformed outputs remain auditable without becoming canonical learning evidence.
 - Replaced raw request-body replay equality with version-aware xAPI Statement comparison while retaining immutable request receipts and per-Statement provenance for single and batch ingestion.
 - Separated canonical Statement identity from per-request ingestion occurrences so idempotent retries retain every immutable receipt, and replaced phrase-only bootstrap checks with an exact machine-readable contract whose comparison preserves JSON type distinctions.
