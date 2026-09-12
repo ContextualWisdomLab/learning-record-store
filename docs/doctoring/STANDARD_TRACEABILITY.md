@@ -15,7 +15,7 @@
 
 This file is the bootstrap traceability ledger for the Learning Record Store. It records standards ownership and the evidence that must exist before this repository makes an implementation or conformance claim. Documentation alone is not conformance evidence.
 
-Primary-source status was rechecked on 2026-09-02. IEEE 9274.1.1-2023 remains an active xAPI base standard, and ISO/IEC/IEEE 39274-1-1:2025 remains the published international adoption. cmi5 Quartz remains a separate xAPI 1.0.3 compatibility surface; it is not evidence that an xAPI 2.0 implementation conforms to cmi5. The official IEEE xAPI 2.0 content examples use the exact `X-Experience-API-Version: 2.0.0` value, so the Rust and PostgreSQL boundary rejects the shorthand `2.0` instead of silently normalizing provenance.
+Primary-source status was rechecked on 2026-09-12. IEEE 9274.1.1-2023 remains an active xAPI base standard, and ISO/IEC/IEEE 39274-1-1:2025 remains the published international adoption. cmi5 Quartz remains a separate xAPI 1.0.3 compatibility surface; it is not evidence that an xAPI 2.0 implementation conforms to cmi5. The IEEE LRS requirements explicitly require accepting `X-Experience-API-Version: 2.0` as `2.0.0`. The PostgreSQL boundary therefore retains `2.0` on the immutable receipt but normalizes canonical Statement processing to `2.0.0`; this is bounded persistence evidence, not an HTTP or conformance claim.
 
 ## Normative surface map
 
@@ -45,7 +45,7 @@ Executable evidence is split by invariant. `tests/postgres_atomic_ingestion.sh` 
 
 These paths may be cited as implementation evidence only after the exact PR head passes the corresponding hosted quality workflow. Proposed migration 0004 and `tests/postgres_batch_transaction.sh` provide the internal durable one-receipt/many-item PostgreSQL primitive and transaction evidence. They do not change the `Not implemented` conformance maturity above because the version-specific parser, Rust/REST adapter, attachments, document resources, and independent xAPI/cmi5 conformance suites are still absent. ADR 0002 records the authorization decision; `docs/product-technical-gap-baseline.md` records the remaining commercialization verification order.
 
-`tests/voiding_invariants.rs` proves only the repository's internal content-binding policy: a validator-classified StatementRef target is retained with the immutable Statement, ordinary Statements cannot authorize voiding, and callers cannot choose a different relation target. It is not xAPI or cmi5 conformance evidence. The future version-specific parser/adapter and independent conformance suite must prove verb recognition, StatementRef shape, version rules, and rejection behavior before this row can advance.
+`tests/voiding_invariants.rs` proves only the repository's internal content-binding policy: a validator-classified StatementRef target is retained with the immutable Statement, ordinary Statements cannot authorize voiding, and callers cannot choose a different relation target. It is not xAPI or cmi5 conformance evidence. `tests/postgres_principal_boundary.sh` and `tests/postgres_batch_transaction.sh` prove only the durable version-alias boundary: received `2.0` is retained on its receipt, canonicalized to `2.0.0` on the Statement, and replays through exact `2.0.0`. The future version-specific HTTP parser/adapter and independent conformance suite must prove header presence, response-version behavior, broader version rules, StatementRef semantics, and protocol error mapping before this row can advance.
 
 ## APA 7 references
 
@@ -54,6 +54,8 @@ Advanced Distributed Learning Initiative. (n.d.). *Experience API specification*
 Aviation Industry CBT Committee. (2016). *cmi5 specification profile for xAPI: Quartz, 1st edition*. https://github.com/AICC/CMI-5_Spec_Current/blob/quartz/cmi5_spec.md
 
 Institute of Electrical and Electronics Engineers. (2023). *IEEE standard for learning technology—JavaScript Object Notation (JSON) data model format and Representational State Transfer (RESTful) web service for learner experience data tracking and access (IEEE Std 9274.1.1-2023).* https://standards.ieee.org/ieee/9274.1.1/7321/
+
+Institute of Electrical and Electronics Engineers. (2026). *9274.1.1 xAPI base standard for LRSs.* https://opensource.ieee.org/xapi/xapi-base-standard-documentation/-/blob/main/9274.1.1%20xAPI%20Base%20Standard%20for%20LRSs.md
 
 International Organization for Standardization, International Electrotechnical Commission, & Institute of Electrical and Electronics Engineers. (2025). *Learning technology—JavaScript Object Notation (JSON) data model format and Representational State Transfer (RESTful) web service for learner experience data tracking and access—Part 1-1: xAPI using JSON serialization and RESTful data transport (ISO/IEC/IEEE 39274-1-1:2025).* https://www.iso.org/standard/91131.html
 

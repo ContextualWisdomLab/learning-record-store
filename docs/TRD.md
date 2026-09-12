@@ -72,7 +72,7 @@ This decision follows PostgreSQL's documented distinction between `session_user`
 
 ## Version and compatibility boundary
 
-xAPI 2.0 is canonical and is received and persisted under the exact protocol label `2.0.0`; `2.0` is only the family name and is not accepted as a wire-version alias. xAPI 1.0.3 exists as an explicit compatibility surface for cmi5 Quartz. `StatementCandidate` carries the received version, and both the kernel and SQL transaction reject a replay whose version or comparison-algorithm version changes even if other evidence happens to match. Compatibility transformations belong to `compatibility_adapter` and retain source/target version, converter version, output digest, validation status, provenance reference, and immutable artifact bytes outside canonical Statement identity.
+xAPI 2.0 is canonical. The controlled SQL writers accept IEEE-defined request labels `2.0` and `2.0.0` for the same `xapi-2.0-statement-comparison/v1` surface. A receipt retains the exact validated request label; a canonical Statement stores `2.0.0`, so equivalent evidence received through either label replays instead of conflicting. Unknown labels and cross-surface comparison identifiers still fail before receipt creation. xAPI 1.0.3 exists as an explicit compatibility surface for cmi5 Quartz. The Rust kernel currently carries only the normalized protocol surface; the future HTTP/repository adapter must retain the exact validated header on the durable receipt. Compatibility transformations belong to `compatibility_adapter` and retain source/target version, converter version, output digest, validation status, provenance reference, and immutable artifact bytes outside canonical Statement identity.
 
 ## Verification
 
