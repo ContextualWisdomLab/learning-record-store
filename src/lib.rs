@@ -353,11 +353,11 @@ pub enum IngestionError {
         /// Duplicate Statement identifier.
         statement_key: String,
     },
-    /// A voiding Statement attempted an impossible self-relation.
+    /// A voiding relation was self-referential or conflicted with an opposite voiding role.
     InvalidVoidingRelation {
         /// Statement that attempted to act as the voiding source.
         voiding_statement_key: String,
-        /// Target Statement, equal to the source for this error.
+        /// Target that equaled the source or already occupied the opposite voiding role.
         voided_statement_key: String,
     },
     /// An immutable voiding Statement attempted to acquire a second target.
@@ -769,9 +769,9 @@ impl StatementKernel {
 
     /// Records a tenant-local one-target voiding relation without deleting either Statement.
     ///
-    /// Re-registering the same relation is idempotent. A self-relation or a different target for
-    /// an already-recorded voiding Statement fails closed so the domain reference matches the
-    /// persistence uniqueness contract.
+    /// Re-registering the same relation is idempotent. A self-relation, a different target for an
+    /// already-recorded voiding Statement, or an opposite-role conflict fails closed so the domain
+    /// reference matches the persistence uniqueness and role contracts.
     pub fn record_voiding(
         &mut self,
         tenant_key: &TenantKey,

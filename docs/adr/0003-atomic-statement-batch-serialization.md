@@ -61,7 +61,7 @@ If a caller supplies duplicate Statement identities, the function fails closed w
 - Advisory-lock hash collisions may serialize unrelated identities; lock-wait telemetry and a realistic hot-key benchmark are required before release readiness.
 - Advisory locks share PostgreSQL's lock-manager memory pool, so bounded batch cardinality and production lock-pressure evidence are required rather than assuming arbitrary batch size is operationally safe.
 - The current SQL array interface is an internal persistence contract, not a public HTTP/API schema; the Rust repository must hide it behind typed domain objects.
-- Empty pre-release migration rollback/reapply is exercised by `tests/postgres_migration_recovery.sh`; crash/retry, backup/restore and process-cancellation evidence remain open.
+- Empty pre-release migration rollback/reapply is exercised by `tests/postgres_migration_recovery.sh`; its table-lock barrier makes rollback wait for an active writer and recheck committed evidence before removal. Crash/retry, backup/restore and process-cancellation evidence remain open.
 - PostgreSQL exact-head execution must confirm the function, forced RLS behavior, constraints and race tests before this ADR can move from Proposed.
 
 ## References
