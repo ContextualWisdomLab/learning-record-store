@@ -15,7 +15,7 @@ use std::fmt::{Display, Formatter};
 pub enum XapiVersion {
     /// IEEE xAPI 2.0 canonical surface, received and persisted as `2.0.0`.
     V2_0,
-    /// Legacy xAPI 1.0.3 compatibility surface used by cmi5 Quartz.
+    /// Legacy xAPI 1.0.3 comparison surface; its stable Statement label is `1.0.0`.
     V1_0_3,
 }
 
@@ -25,7 +25,7 @@ impl XapiVersion {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::V2_0 => "2.0.0",
-            Self::V1_0_3 => "1.0.3",
+            Self::V1_0_3 => "1.0.0",
         }
     }
 }

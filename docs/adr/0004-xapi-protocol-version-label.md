@@ -32,7 +32,7 @@ The persistence boundary must therefore preserve two different facts: the exact 
 
 `statement_comparison_version_for_xapi` maps both `2.0` and `2.0.0` to `xapi-2.0-statement-comparison/v1`. It maps `1.0` and syntactically valid `1.0.x` request labels to the existing `xapi-1.0.3-statement-comparison/v1` compatibility implementation. `canonical_xapi_version_label` maps xAPI 2.0 inputs to `2.0.0` and accepted xAPI 1.0 inputs to the stable data-model label `1.0.0`. The item and batch writers store the exact validated input in `ingestion_receipt.received_xapi_version`, store the normalized label in `statement_record.received_xapi_version`, and compare replays against that normalized label.
 
-`XapiVersion::V2_0.as_str()` remains `2.0.0` because the Rust kernel currently represents the normalized protocol surface. The future HTTP/repository adapter must retain the exact validated header separately when creating the durable receipt.
+The Rust kernel represents normalized Statement protocol surfaces: `XapiVersion::V2_0.as_str()` returns `2.0.0`, and `XapiVersion::V1_0_3.as_str()` returns the stable xAPI 1.0 data-model label `1.0.0`. The `V1_0_3` variant and `xapi-1.0.3-statement-comparison/v1` identifier continue to name the compatibility and comparison implementation; they are not persisted Statement labels. The future HTTP/repository adapter must retain the exact validated request header separately when creating the durable receipt.
 
 ## Evidence
 
@@ -42,6 +42,7 @@ The persistence boundary must therefore preserve two different facts: the exact 
 - ADL xAPI 1.0.3, Part 3, §3.3 Versioning: https://github.com/adlnet/xAPI-Spec/blob/master/xAPI-Communication.md
 - Test-only RED run 34702148283: the batch writer rejected required `1.0` input at the shared persistence mapping boundary.
 - Implementation run 34702333379: item and batch fixtures accepted `1.0`/valid `1.0.x`, retained exact receipt labels, canonicalized Statements to `1.0.0`, proved alias replay, and rejected a malformed leading-zero patch.
+- Test-only RED run 34703770760: the Rust public label still returned `1.0.3` while PostgreSQL and this decision required canonical Statement label `1.0.0`; seven kernel tests passed and the label contract failed with the exact mismatch.
 - Final documentation-head GREEN remains required before this Proposed decision can advance.
 
 ## Effects and risks
