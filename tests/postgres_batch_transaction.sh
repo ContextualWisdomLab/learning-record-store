@@ -127,10 +127,13 @@ invalid_one_zero_batch_before="$(psql -At -F '|' <<'SQL'
 SELECT
     (SELECT count(*) FROM ingestion_receipt
      WHERE tenant_key = 'tenant-alpha'
-       AND raw_request_bytes = convert_to('[{"id":"invalid-one-zero-batch-version"}]', 'UTF8')),
+       AND raw_request_bytes = convert_to('[{"id":"invalid-one-zero-batch-version-a"},{"id":"invalid-one-zero-batch-version-b"}]', 'UTF8')),
+    (SELECT count(*) FROM statement_ingestion_item
+     WHERE tenant_key = 'tenant-alpha'
+       AND submitted_statement_key IN ('invalid-one-zero-batch-version-a', 'invalid-one-zero-batch-version-b')),
     (SELECT count(*) FROM statement_record
      WHERE tenant_key = 'tenant-alpha'
-       AND statement_key = 'invalid-one-zero-batch-version');
+       AND statement_key IN ('invalid-one-zero-batch-version-a', 'invalid-one-zero-batch-version-b'));
 SQL
 )"
 if invalid_one_zero_batch_error="$({ alpha_psql <<'SQL'
@@ -139,11 +142,11 @@ SELECT *
 FROM persist_statement_batch(
     'tenant-alpha',
     '1.0.03',
-    convert_to('[{"id":"invalid-one-zero-batch-version"}]', 'UTF8'),
-    ARRAY['invalid-one-zero-batch-version'],
-    ARRAY['xapi-1.0.3-statement-comparison/v1'],
-    ARRAY[convert_to('comparison-invalid-one-zero-batch-version', 'UTF8')],
-    ARRAY[convert_to('{"id":"invalid-one-zero-batch-version"}', 'UTF8')]
+    convert_to('[{"id":"invalid-one-zero-batch-version-a"},{"id":"invalid-one-zero-batch-version-b"}]', 'UTF8'),
+    ARRAY['invalid-one-zero-batch-version-a', 'invalid-one-zero-batch-version-b'],
+    ARRAY['xapi-1.0.3-statement-comparison/v1', 'xapi-1.0.3-statement-comparison/v1'],
+    ARRAY[convert_to('comparison-invalid-one-zero-batch-version-a', 'UTF8'), convert_to('comparison-invalid-one-zero-batch-version-b', 'UTF8')],
+    ARRAY[convert_to('{"id":"invalid-one-zero-batch-version-a"}', 'UTF8'), convert_to('{"id":"invalid-one-zero-batch-version-b"}', 'UTF8')]
 );
 SQL
 } 2>&1)"; then
@@ -162,13 +165,16 @@ invalid_one_zero_batch_after="$(psql -At -F '|' <<'SQL'
 SELECT
     (SELECT count(*) FROM ingestion_receipt
      WHERE tenant_key = 'tenant-alpha'
-       AND raw_request_bytes = convert_to('[{"id":"invalid-one-zero-batch-version"}]', 'UTF8')),
+       AND raw_request_bytes = convert_to('[{"id":"invalid-one-zero-batch-version-a"},{"id":"invalid-one-zero-batch-version-b"}]', 'UTF8')),
+    (SELECT count(*) FROM statement_ingestion_item
+     WHERE tenant_key = 'tenant-alpha'
+       AND submitted_statement_key IN ('invalid-one-zero-batch-version-a', 'invalid-one-zero-batch-version-b')),
     (SELECT count(*) FROM statement_record
      WHERE tenant_key = 'tenant-alpha'
-       AND statement_key = 'invalid-one-zero-batch-version');
+       AND statement_key IN ('invalid-one-zero-batch-version-a', 'invalid-one-zero-batch-version-b'));
 SQL
 )"
-[[ "$invalid_one_zero_batch_before" == "0|0" && "$invalid_one_zero_batch_after" == "$invalid_one_zero_batch_before" ]] || {
+[[ "$invalid_one_zero_batch_before" == "0|0|0" && "$invalid_one_zero_batch_after" == "$invalid_one_zero_batch_before" ]] || {
   echo "batch writer mutated evidence for malformed xAPI 1.0: before=$invalid_one_zero_batch_before after=$invalid_one_zero_batch_after" >&2
   exit 1
 }

@@ -190,6 +190,9 @@ SELECT
     (SELECT count(*) FROM ingestion_receipt
      WHERE tenant_key = 'tenant-alpha'
        AND raw_request_bytes = convert_to('{"id":"invalid-one-zero-version"}', 'UTF8')),
+    (SELECT count(*) FROM statement_ingestion_item
+     WHERE tenant_key = 'tenant-alpha'
+       AND submitted_statement_key = 'invalid-one-zero-version'),
     (SELECT count(*) FROM statement_record
      WHERE tenant_key = 'tenant-alpha'
        AND statement_key = 'invalid-one-zero-version');
@@ -226,12 +229,15 @@ SELECT
     (SELECT count(*) FROM ingestion_receipt
      WHERE tenant_key = 'tenant-alpha'
        AND raw_request_bytes = convert_to('{"id":"invalid-one-zero-version"}', 'UTF8')),
+    (SELECT count(*) FROM statement_ingestion_item
+     WHERE tenant_key = 'tenant-alpha'
+       AND submitted_statement_key = 'invalid-one-zero-version'),
     (SELECT count(*) FROM statement_record
      WHERE tenant_key = 'tenant-alpha'
        AND statement_key = 'invalid-one-zero-version');
 SQL
 )"
-[[ "$invalid_one_zero_item_before" == "0|0" && "$invalid_one_zero_item_after" == "$invalid_one_zero_item_before" ]] || {
+[[ "$invalid_one_zero_item_before" == "0|0|0" && "$invalid_one_zero_item_after" == "$invalid_one_zero_item_before" ]] || {
   echo "item writer mutated evidence for malformed xAPI 1.0: before=$invalid_one_zero_item_before after=$invalid_one_zero_item_after" >&2
   exit 1
 }

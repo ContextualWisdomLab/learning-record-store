@@ -76,10 +76,12 @@ require(
 
 # Rollback must establish its exclusion barrier over every removable relation before observing
 # emptiness. Keep the table list explicit so removing an otherwise unexercised relation fails CI.
-rollback_lock_barrier = rollback_migration.split("DO $$", 1)[0]
+_, lock_table_marker, after_lock_table = rollback_migration.partition("LOCK TABLE")
+rollback_lock_relations, lock_mode_marker, _ = after_lock_table.partition(
+    "IN ACCESS EXCLUSIVE MODE;"
+)
 require(
-    "LOCK TABLE" in rollback_lock_barrier
-    and "IN ACCESS EXCLUSIVE MODE;" in rollback_lock_barrier,
+    bool(lock_table_marker) and bool(lock_mode_marker),
     "rollback must establish an ACCESS EXCLUSIVE table-lock barrier",
 )
 for relation_name in (
@@ -91,7 +93,7 @@ for relation_name in (
     "voiding_relation",
 ):
     require(
-        relation_name in rollback_lock_barrier,
+        relation_name in rollback_lock_relations,
         f"rollback lock barrier must include {relation_name}",
     )
 

@@ -115,7 +115,7 @@ done
 }
 
 PGAPPNAME=lrs_recovery_rollback \
-psql -v ON_ERROR_STOP=1 -f migrations/rollback_statement_evidence.sql \
+psql -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f migrations/rollback_statement_evidence.sql \
   >"$rollback_log" 2>&1 &
 rollback_pid=$!
 
@@ -152,6 +152,10 @@ wait "$rollback_pid" || rollback_status=$?
   exit 1
 }
 rollback_error="$(cat "$rollback_log")"
+[[ "$rollback_error" == *"55000"* ]] || {
+  echo "concurrent rollback returned the wrong SQLSTATE: $rollback_error" >&2
+  exit 1
+}
 [[ "$rollback_error" == *"refusing rollback while learning record evidence or tenant bindings exist"* ]] || {
   echo "concurrent rollback returned the wrong error: $rollback_error" >&2
   exit 1
