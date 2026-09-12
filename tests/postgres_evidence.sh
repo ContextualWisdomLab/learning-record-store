@@ -47,7 +47,7 @@ INSERT INTO statement_record (
 ) VALUES (
     'tenant-beta',
     'statement-cross-tenant',
-    '2.0',
+    '2.0.0',
     'xapi-2.0-statement-comparison/v1',
     sha256(decode('aa', 'hex')),
     decode('aa', 'hex'),
@@ -72,7 +72,7 @@ INSERT INTO statement_record (
 ) VALUES (
     'tenant-alpha',
     'statement-001',
-    '2.0',
+    '2.0.0',
     'xapi-2.0-statement-comparison/v1',
     sha256(decode('bb', 'hex')),
     decode('bb', 'hex'),
@@ -93,7 +93,7 @@ INSERT INTO statement_record (
 ) VALUES (
     'tenant-alpha',
     'statement-001',
-    '2.0',
+    '2.0.0',
     'xapi-2.0-statement-comparison/v1',
     sha256(decode('cc', 'hex')),
     decode('cc', 'hex'),
@@ -128,7 +128,7 @@ INSERT INTO statement_record (
 ) VALUES (
     'tenant-alpha',
     'statement-corrupt-digest',
-    '2.0',
+    '2.0.0',
     'xapi-2.0-statement-comparison/v1',
     decode(repeat('99', 32), 'hex'),
     convert_to('comparison-digest-contract', 'UTF8'),
@@ -149,7 +149,7 @@ INSERT INTO ingestion_receipt (
     request_content_hash
 ) VALUES (
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"receipt-corrupt-digest"}', 'UTF8'),
     decode(repeat('88', 32), 'hex')
 );
@@ -168,7 +168,7 @@ INSERT INTO ingestion_receipt (
     request_content_hash
 ) VALUES (
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"statement-001"}', 'UTF8'),
     sha256(convert_to('{"id":"statement-001"}', 'UTF8'))
 );
@@ -213,7 +213,7 @@ INSERT INTO statement_record (
 (
     'tenant-alpha',
     'statement-voiding',
-    '2.0',
+    '2.0.0',
     'xapi-2.0-statement-comparison/v1',
     sha256(decode('dd', 'hex')),
     decode('dd', 'hex'),
@@ -222,7 +222,7 @@ INSERT INTO statement_record (
 (
     'tenant-alpha',
     'statement-target-a',
-    '2.0',
+    '2.0.0',
     'xapi-2.0-statement-comparison/v1',
     sha256(decode('ee', 'hex')),
     decode('ee', 'hex'),
@@ -231,7 +231,7 @@ INSERT INTO statement_record (
 (
     'tenant-alpha',
     'statement-target-b',
-    '2.0',
+    '2.0.0',
     'xapi-2.0-statement-comparison/v1',
     sha256(decode('ff', 'hex')),
     decode('ff', 'hex'),
