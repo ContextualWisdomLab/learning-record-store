@@ -61,6 +61,7 @@ pub struct StatementCandidate {
     received_xapi_version: XapiVersion,
     raw_statement_bytes: Vec<u8>,
     comparison_bytes: Vec<u8>,
+    voided_statement_key: Option<String>,
 }
 
 impl StatementCandidate {
@@ -97,7 +98,43 @@ impl StatementCandidate {
             received_xapi_version,
             raw_statement_bytes,
             comparison_bytes,
+            voided_statement_key: None,
         })
+    }
+
+    /// Builds a validated voiding Statement candidate with its parsed `StatementRef` target.
+    ///
+    /// The version-specific validator must call this constructor only after proving that the
+    /// Statement uses the xAPI voiding verb and that its object is the supplied StatementRef.
+    pub fn new_voiding(
+        tenant_key: TenantKey,
+        statement_key: impl Into<String>,
+        received_xapi_version: XapiVersion,
+        raw_statement_bytes: Vec<u8>,
+        comparison_bytes: Vec<u8>,
+        voided_statement_key: impl Into<String>,
+    ) -> Result<Self, IngestionError> {
+        let mut candidate = Self::new(
+            tenant_key,
+            statement_key,
+            received_xapi_version,
+            raw_statement_bytes,
+            comparison_bytes,
+        )?;
+        let voided_statement_key = voided_statement_key.into();
+        if voided_statement_key.trim().is_empty() {
+            return Err(IngestionError::InvalidIdentity {
+                field: "voided_statement_key",
+            });
+        }
+        if candidate.statement_key == voided_statement_key {
+            return Err(IngestionError::InvalidVoidingRelation {
+                voiding_statement_key: candidate.statement_key,
+                voided_statement_key,
+            });
+        }
+        candidate.voided_statement_key = Some(voided_statement_key);
+        Ok(candidate)
     }
 }
 
@@ -111,6 +148,7 @@ pub struct StoredStatement {
     content_hash: [u8; 32],
     comparison_bytes: Vec<u8>,
     raw_statement_bytes: Vec<u8>,
+    voided_statement_key: Option<String>,
 }
 
 impl StoredStatement {
@@ -148,6 +186,12 @@ impl StoredStatement {
     #[must_use]
     pub fn raw_statement_bytes(&self) -> &[u8] {
         &self.raw_statement_bytes
+    }
+
+    /// Returns the parsed StatementRef target when this is a validated voiding Statement.
+    #[must_use]
+    pub fn voided_statement_key(&self) -> Option<&str> {
+        self.voided_statement_key.as_deref()
     }
 }
 
@@ -353,21 +397,17 @@ pub enum IngestionError {
         /// Duplicate Statement identifier.
         statement_key: String,
     },
+    /// Stored Statement content does not identify a valid xAPI voiding relation.
+    StatementIsNotVoiding {
+        /// Ordinary Statement that attempted to authorize a voiding relation.
+        statement_key: String,
+    },
     /// A voiding relation was self-referential or conflicted with an opposite voiding role.
     InvalidVoidingRelation {
         /// Statement that attempted to act as the voiding source.
         voiding_statement_key: String,
         /// Target that equaled the source or already occupied the opposite voiding role.
         voided_statement_key: String,
-    },
-    /// An immutable voiding Statement attempted to acquire a second target.
-    VoidingTargetConflict {
-        /// Statement that already owns a target relation.
-        voiding_statement_key: String,
-        /// Existing immutable target.
-        existing_voided_statement_key: String,
-        /// Conflicting target requested by the caller.
-        attempted_voided_statement_key: String,
     },
 }
 
@@ -406,20 +446,15 @@ impl Display for IngestionError {
                 formatter,
                 "duplicate statement {statement_key} in request receipt {receipt_number}"
             ),
+            Self::StatementIsNotVoiding { statement_key } => {
+                write!(formatter, "statement is not voiding: {statement_key}")
+            }
             Self::InvalidVoidingRelation {
                 voiding_statement_key,
                 voided_statement_key,
             } => write!(
                 formatter,
                 "invalid voiding relation: {voiding_statement_key} cannot void {voided_statement_key}"
-            ),
-            Self::VoidingTargetConflict {
-                voiding_statement_key,
-                existing_voided_statement_key,
-                attempted_voided_statement_key,
-            } => write!(
-                formatter,
-                "voiding target conflict for {voiding_statement_key}: existing target {existing_voided_statement_key}, attempted target {attempted_voided_statement_key}"
             ),
         }
     }
@@ -561,7 +596,8 @@ impl StatementKernel {
                     && existing.statement_comparison_version
                         == comparison_version(candidate.received_xapi_version)
                     && existing.content_hash == content_hash
-                    && existing.comparison_bytes == candidate.comparison_bytes;
+                    && existing.comparison_bytes == candidate.comparison_bytes
+                    && existing.voided_statement_key == candidate.voided_statement_key;
                 if !exact_replay {
                     conflict_indices.insert(request_statement_index);
                     if first_conflict_statement_key.is_none() {
@@ -603,6 +639,7 @@ impl StatementKernel {
                     content_hash,
                     comparison_bytes: candidate.comparison_bytes,
                     raw_statement_bytes: candidate.raw_statement_bytes,
+                    voided_statement_key: candidate.voided_statement_key,
                 };
                 self.statements.insert(key, statement.clone());
                 (IngestionStatus::Accepted, statement)
@@ -688,7 +725,8 @@ impl StatementKernel {
                 && existing.statement_comparison_version
                     == comparison_version(candidate.received_xapi_version)
                 && existing.content_hash == content_hash
-                && existing.comparison_bytes == candidate.comparison_bytes;
+                && existing.comparison_bytes == candidate.comparison_bytes
+                && existing.voided_statement_key == candidate.voided_statement_key;
             let status = if exact_replay {
                 IngestionStatus::Replayed
             } else {
@@ -722,6 +760,7 @@ impl StatementKernel {
             content_hash,
             comparison_bytes: candidate.comparison_bytes,
             raw_statement_bytes: candidate.raw_statement_bytes,
+            voided_statement_key: candidate.voided_statement_key,
         };
         self.statements.insert(key, statement.clone());
         self.occurrences.push(StatementOccurrence {
@@ -767,28 +806,29 @@ impl StatementKernel {
         &self.occurrences
     }
 
-    /// Records a tenant-local one-target voiding relation without deleting either Statement.
+    /// Records the relation declared by one stored, validator-classified voiding Statement.
     ///
     /// Re-registering the same relation is idempotent. A self-relation, a different target for an
     /// already-recorded voiding Statement, or an opposite-role conflict fails closed so the domain
     /// reference matches the persistence uniqueness and role contracts.
-    pub fn record_voiding(
+    pub fn record_voiding_statement(
         &mut self,
         tenant_key: &TenantKey,
         voiding_statement_key: &str,
-        voided_statement_key: &str,
     ) -> Result<(), IngestionError> {
-        for statement_key in [voiding_statement_key, voided_statement_key] {
-            if self.statement(tenant_key, statement_key).is_none() {
-                return Err(IngestionError::StatementNotFound {
-                    statement_key: statement_key.to_owned(),
-                });
-            }
-        }
-        if voiding_statement_key == voided_statement_key {
-            return Err(IngestionError::InvalidVoidingRelation {
-                voiding_statement_key: voiding_statement_key.to_owned(),
-                voided_statement_key: voided_statement_key.to_owned(),
+        let voided_statement_key = self
+            .statement(tenant_key, voiding_statement_key)
+            .ok_or_else(|| IngestionError::StatementNotFound {
+                statement_key: voiding_statement_key.to_owned(),
+            })?
+            .voided_statement_key()
+            .ok_or_else(|| IngestionError::StatementIsNotVoiding {
+                statement_key: voiding_statement_key.to_owned(),
+            })?
+            .to_owned();
+        if self.statement(tenant_key, &voided_statement_key).is_none() {
+            return Err(IngestionError::StatementNotFound {
+                statement_key: voided_statement_key,
             });
         }
         if self.voiding_relations.iter().any(|relation| {
@@ -798,26 +838,19 @@ impl StatementKernel {
         }) {
             return Err(IngestionError::InvalidVoidingRelation {
                 voiding_statement_key: voiding_statement_key.to_owned(),
-                voided_statement_key: voided_statement_key.to_owned(),
+                voided_statement_key,
             });
         }
-        if let Some(existing) = self.voiding_relations.iter().find(|relation| {
+        if self.voiding_relations.iter().any(|relation| {
             relation.tenant_key == *tenant_key
                 && relation.voiding_statement_key == voiding_statement_key
         }) {
-            if existing.voided_statement_key == voided_statement_key {
-                return Ok(());
-            }
-            return Err(IngestionError::VoidingTargetConflict {
-                voiding_statement_key: voiding_statement_key.to_owned(),
-                existing_voided_statement_key: existing.voided_statement_key.clone(),
-                attempted_voided_statement_key: voided_statement_key.to_owned(),
-            });
+            return Ok(());
         }
         self.voiding_relations.insert(VoidingRelation {
             tenant_key: tenant_key.clone(),
             voiding_statement_key: voiding_statement_key.to_owned(),
-            voided_statement_key: voided_statement_key.to_owned(),
+            voided_statement_key,
         });
         Ok(())
     }
