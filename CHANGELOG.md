@@ -24,6 +24,7 @@
 - Product and technical requirements for the first executable commercialization slice.
 - Exact-head Rust formatting, test, Clippy, rustdoc, 100% line-coverage, PostgreSQL invariant, transactional race, database-principal, batch-outcome, and shared-receipt batch gates, including pull requests stacked on non-default branches.
 - A workflow regression contract that prevents stacked pull requests from silently losing exact-head quality checks.
+- Self-contained PostgreSQL fixtures that reset test schema/roles and apply their own migration stage, with reverse-order CI proving no suite inherits hidden predecessor state.
 - Product-first README, Apache-2.0 repository license, public documentation landing source, and clarified document-resource revision/idempotency semantics carried forward from the foundation branch without rewriting stack history.
 
 ### Changed
