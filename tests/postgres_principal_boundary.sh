@@ -40,7 +40,7 @@ INSERT INTO statement_record (
 ) VALUES (
     'tenant-alpha',
     'direct-write-must-fail',
-    '2.0',
+    '2.0.0',
     'xapi-2.0-statement-comparison/v1',
     sha256(decode('aa', 'hex')),
     decode('aa', 'hex'),
@@ -56,7 +56,7 @@ alpha_outcome="$({ alpha_psql -At <<'SQL'
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"principal-alpha-001"}', 'UTF8'),
     0,
     'principal-alpha-001',
@@ -75,7 +75,7 @@ if version_error="$({ alpha_psql <<'SQL'
 SELECT *
 FROM persist_statement_occurrence(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"mismatched-comparison-version"}', 'UTF8'),
     0,
     'mismatched-comparison-version',
@@ -97,7 +97,7 @@ if alpha_psql <<'SQL'
 SELECT *
 FROM persist_statement_occurrence(
     'tenant-beta',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"principal-spoof"}', 'UTF8'),
     0,
     'principal-spoof',
@@ -119,12 +119,12 @@ for field_case in version statement_key comparison_version; do
       comparison_version='xapi-2.0-statement-comparison/v1'
       ;;
     statement_key)
-      received_version='2.0'
+      received_version='2.0.0'
       statement_key=$'\n'
       comparison_version='xapi-2.0-statement-comparison/v1'
       ;;
     comparison_version)
-      received_version='2.0'
+      received_version='2.0.0'
       statement_key='whitespace-comparison-version-001'
       comparison_version=$'\t\n'
       ;;
@@ -197,7 +197,7 @@ INSERT INTO statement_record (
 ) VALUES (
     'tenant-alpha',
     :'table_statement_key',
-    '2.0',
+    '2.0.0',
     :'table_comparison_version',
     sha256(convert_to('comparison-whitespace-table', 'UTF8')),
     convert_to('comparison-whitespace-table', 'UTF8'),
@@ -214,7 +214,7 @@ beta_outcome="$({ beta_psql -At <<'SQL'
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-beta',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"principal-beta-001"}', 'UTF8'),
     0,
     'principal-beta-001',
@@ -251,7 +251,7 @@ INSERT INTO statement_record (
 SELECT
     'tenant-alpha',
     statement_key,
-    '2.0',
+    '2.0.0',
     'xapi-2.0-statement-comparison/v1',
     sha256(convert_to('comparison:' || statement_key, 'UTF8')),
     convert_to('comparison:' || statement_key, 'UTF8'),
