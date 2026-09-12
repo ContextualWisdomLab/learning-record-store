@@ -18,7 +18,7 @@ if version_error="$({ alpha_psql <<'SQL'
 SELECT *
 FROM persist_statement_batch(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('[{"id":"batch-mismatched-version"}]', 'UTF8'),
     ARRAY['batch-mismatched-version'],
     ARRAY['xapi-1.0.3-statement-comparison/v1'],
@@ -39,7 +39,7 @@ first_batch="$({ alpha_psql -At -F '|' <<'SQL'
 SELECT persisted_receipt_number, request_statement_index, persistence_outcome, persisted_statement_key
 FROM persist_statement_batch(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('[{"id":"durable-batch-001"},{"id":"durable-batch-002"}]', 'UTF8'),
     ARRAY['durable-batch-001', 'durable-batch-002'],
     ARRAY['xapi-2.0-statement-comparison/v1', 'xapi-2.0-statement-comparison/v1'],
@@ -79,7 +79,7 @@ replay_batch="$({ alpha_psql -At -F '|' <<'SQL'
 SELECT persisted_receipt_number, request_statement_index, persistence_outcome, persisted_statement_key
 FROM persist_statement_batch(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('[{"id":"durable-batch-001"},{"id":"durable-batch-002"}]', 'UTF8'),
     ARRAY['durable-batch-001', 'durable-batch-002'],
     ARRAY['xapi-2.0-statement-comparison/v1', 'xapi-2.0-statement-comparison/v1'],
@@ -100,7 +100,7 @@ conflict_batch="$({ alpha_psql -At -F '|' <<'SQL'
 SELECT persisted_receipt_number, request_statement_index, persistence_outcome, persisted_statement_key
 FROM persist_statement_batch(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('[{"id":"durable-batch-001","changed":true},{"id":"durable-batch-003"}]', 'UTF8'),
     ARRAY['durable-batch-001', 'durable-batch-003'],
     ARRAY['xapi-2.0-statement-comparison/v1', 'xapi-2.0-statement-comparison/v1'],
@@ -151,7 +151,7 @@ duplicate_batch="$({ alpha_psql -At -F '|' <<'SQL'
 SELECT persisted_receipt_number, request_statement_index, persistence_outcome, persisted_statement_key
 FROM persist_statement_batch(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('[{"id":"duplicate-batch"},{"id":"duplicate-batch"}]', 'UTF8'),
     ARRAY['duplicate-batch', 'duplicate-batch'],
     ARRAY['xapi-2.0-statement-comparison/v1', 'xapi-2.0-statement-comparison/v1'],
