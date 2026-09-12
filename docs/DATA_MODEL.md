@@ -85,7 +85,7 @@ A validated voiding Statement retains its parsed StatementRef target as immutabl
 
 `statement_comparison_version` identifies the exact internal, version-aware comparison algorithm. `content_hash` is the raw 32-octet SHA-256 digest over the deterministic comparison representation used by the executable kernel and PostgreSQL schema. The hash is an indexed equality candidate, not the sole authority: equality is confirmed by identical comparison-algorithm version and retained comparison bytes, preventing a digest collision from becoming semantic authority.
 
-The controlled writers accept only the reviewed protocol/comparison pairs: `2.0` with `xapi-2.0-statement-comparison/v1`, or `1.0.3` with `xapi-1.0.3-statement-comparison/v1`. An unknown protocol label or a cross-version comparison label fails before receipt or canonical mutation.
+The controlled writers accept only the reviewed protocol/comparison pairs: `2.0.0` with `xapi-2.0-statement-comparison/v1`, or `1.0.3` with `xapi-1.0.3-statement-comparison/v1`. An unknown protocol label or a cross-version comparison label fails before receipt or canonical mutation.
 
 Ingestion validates a complete POST batch before canonical persistence. Tenant/version context and duplicate Statement identities are request-level checks and run before stored canonical replay/conflict comparison; this preserves deterministic error precedence. If the batch fails, every index remains tied to the shared receipt and no canonical writes occur. Only after the full preflight succeeds does the domain reference apply accepted/replayed outcomes. Compatibility transformations remain separate provenance-linked records and do not participate in source statement identity.
 
