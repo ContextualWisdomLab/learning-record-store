@@ -9,6 +9,10 @@ migration_2 = Path("migrations/0002_database_principal_boundary.sql").read_text(
 migration_3 = Path("migrations/0003_batch_rejection_outcome.sql").read_text(
     encoding="utf-8"
 )
+rollback_migration = Path("migrations/rollback_statement_evidence.sql").read_text(
+    encoding="utf-8"
+)
+rust_source = Path("src/lib.rs").read_text(encoding="utf-8")
 
 failures: list[str] = []
 
@@ -68,6 +72,20 @@ require("hashtext" not in migration_2, "controlled writers must not depend on ha
 require(
     "CREATE FUNCTION statement_advisory_lock_key" in migration_2,
     "migration 0002 must define the shared lock-key derivation",
+)
+
+# Rollback must establish its exclusion barrier before observing emptiness.
+require(
+    "LOCK TABLE\n    tenant_partition," in rollback_migration
+    and "IN ACCESS EXCLUSIVE MODE;" in rollback_migration
+    and rollback_migration.index("LOCK TABLE") < rollback_migration.index("IF EXISTS"),
+    "rollback must lock every evidence relation before its emptiness check",
+)
+
+# The public error contract includes self-reference and opposite-role conflicts.
+require(
+    "opposite voiding role" in rust_source,
+    "InvalidVoidingRelation documentation must describe opposite-role conflicts",
 )
 
 if failures:
