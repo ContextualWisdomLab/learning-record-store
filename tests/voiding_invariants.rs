@@ -1,3 +1,5 @@
+//! Integration tests for non-destructive Statement voiding relations.
+
 use learning_record_store::{
     IngestionError, StatementCandidate, StatementKernel, TenantKey, XapiVersion,
 };

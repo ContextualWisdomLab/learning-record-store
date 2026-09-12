@@ -1,3 +1,5 @@
+//! Integration tests for Statement ingestion decisions and invariants.
+
 use learning_record_store::{
     IngestionError, IngestionStatus, StatementCandidate, StatementKernel, TenantKey, XapiVersion,
 };

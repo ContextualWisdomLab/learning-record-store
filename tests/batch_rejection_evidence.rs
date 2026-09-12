@@ -1,3 +1,5 @@
+//! Integration tests for rejected batch provenance and atomicity.
+
 use learning_record_store::{
     IngestionError, IngestionStatus, StatementCandidate, StatementKernel, TenantKey, XapiVersion,
 };

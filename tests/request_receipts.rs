@@ -1,3 +1,5 @@
+//! Integration tests for immutable request receipts and occurrence evidence.
+
 use learning_record_store::{
     IngestionError, IngestionStatus, StatementCandidate, StatementKernel, TenantKey, XapiVersion,
 };
