@@ -18,7 +18,7 @@ BEGIN
        OR EXISTS (SELECT 1 FROM statement_ingestion_item)
        OR EXISTS (SELECT 1 FROM voiding_relation) THEN
         RAISE EXCEPTION 'refusing rollback while learning record evidence or tenant bindings exist'
-            USING ERRCODE = '55000';
+            USING ERRCODE = '55001';
     END IF;
 END
 $$;
