@@ -74,3 +74,26 @@ fn one_voiding_statement_cannot_acquire_multiple_targets() {
     assert_eq!(relations[0].voiding_statement_key(), "statement-voiding");
     assert_eq!(relations[0].voided_statement_key(), "statement-target-a");
 }
+
+#[test]
+fn a_voiding_statement_cannot_become_another_voiding_target() {
+    let mut kernel = StatementKernel::default();
+    let tenant = TenantKey::new("tenant-alpha").expect("tenant key");
+    seed(&mut kernel, "statement-voiding-a");
+    seed(&mut kernel, "statement-target-b");
+    seed(&mut kernel, "statement-voiding-c");
+
+    kernel
+        .record_voiding(&tenant, "statement-voiding-a", "statement-target-b")
+        .expect("first voiding relation accepted");
+
+    let error = kernel
+        .record_voiding(&tenant, "statement-voiding-c", "statement-voiding-a")
+        .expect_err("a voiding Statement cannot itself be voided");
+
+    assert!(matches!(
+        &error,
+        IngestionError::InvalidVoidingRelation { .. }
+    ));
+    assert_eq!(kernel.voiding_relations().len(), 1);
+}

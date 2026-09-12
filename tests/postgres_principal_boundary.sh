@@ -71,6 +71,28 @@ SQL
   exit 1
 }
 
+if version_error="$({ alpha_psql <<'SQL'
+SELECT *
+FROM persist_statement_occurrence(
+    'tenant-alpha',
+    '2.0',
+    convert_to('{"id":"mismatched-comparison-version"}', 'UTF8'),
+    0,
+    'mismatched-comparison-version',
+    'xapi-1.0.3-statement-comparison/v1',
+    convert_to('comparison-mismatched-version', 'UTF8'),
+    convert_to('{"id":"mismatched-comparison-version"}', 'UTF8')
+);
+SQL
+} 2>&1)"; then
+  echo "item writer accepted an incompatible xAPI/comparison-version pair" >&2
+  exit 1
+fi
+[[ "$version_error" == *"xAPI version and Statement comparison version are incompatible"* ]] || {
+  echo "item writer returned the wrong version-pair error: $version_error" >&2
+  exit 1
+}
+
 if alpha_psql <<'SQL'
 SELECT *
 FROM persist_statement_occurrence(
@@ -213,6 +235,77 @@ SQL
 } | tail -n 1)"
 [[ "$alpha_statement_count" == "1" ]] || {
   echo "tenant-alpha unexpectedly observed cross-tenant canonical evidence: $alpha_statement_count" >&2
+  exit 1
+}
+
+psql -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO statement_record (
+    tenant_key,
+    statement_key,
+    received_xapi_version,
+    statement_comparison_version,
+    content_hash,
+    comparison_bytes,
+    raw_statement_bytes
+)
+SELECT
+    'tenant-alpha',
+    statement_key,
+    '2.0',
+    'xapi-2.0-statement-comparison/v1',
+    sha256(convert_to('comparison:' || statement_key, 'UTF8')),
+    convert_to('comparison:' || statement_key, 'UTF8'),
+    convert_to('{"id":"' || statement_key || '"}', 'UTF8')
+FROM unnest(ARRAY[
+    'concurrent-voiding-a',
+    'concurrent-target-b',
+    'concurrent-voiding-c'
+]) AS seeded_statement(statement_key);
+SQL
+
+voiding_logs="$(mktemp -d)"
+trap 'rm -rf "$voiding_logs"' EXIT
+
+psql -v ON_ERROR_STOP=1 >"$voiding_logs/first.log" 2>&1 <<'SQL' &
+BEGIN;
+INSERT INTO voiding_relation (tenant_key, voiding_statement_key, voided_statement_key)
+VALUES ('tenant-alpha', 'concurrent-voiding-a', 'concurrent-target-b');
+SELECT pg_sleep(1);
+COMMIT;
+SQL
+first_voiding_pid=$!
+sleep 0.2
+
+if psql -v ON_ERROR_STOP=1 >"$voiding_logs/second.log" 2>&1 <<'SQL'
+INSERT INTO voiding_relation (tenant_key, voiding_statement_key, voided_statement_key)
+VALUES ('tenant-alpha', 'concurrent-voiding-c', 'concurrent-voiding-a');
+SQL
+then
+  second_voiding_failed=false
+else
+  second_voiding_failed=true
+fi
+wait "$first_voiding_pid"
+
+[[ "$second_voiding_failed" == "true" ]] || {
+  echo "concurrent writer voided a Statement already acting as a voiding Statement" >&2
+  exit 1
+}
+grep -q "a voiding Statement cannot itself be voided" "$voiding_logs/second.log" || {
+  echo "concurrent voiding writer returned the wrong invariant error" >&2
+  cat "$voiding_logs/second.log" >&2
+  exit 1
+}
+
+voiding_relation_count="$(psql -At <<'SQL'
+SELECT count(*)
+FROM voiding_relation
+WHERE tenant_key = 'tenant-alpha'
+  AND voiding_statement_key IN ('concurrent-voiding-a', 'concurrent-voiding-c');
+SQL
+)"
+[[ "$voiding_relation_count" == "1" ]] || {
+  echo "expected one valid concurrent voiding relation, got: $voiding_relation_count" >&2
   exit 1
 }
 

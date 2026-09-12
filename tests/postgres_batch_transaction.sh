@@ -14,6 +14,27 @@ alpha_psql() {
   PGUSER=lrs_tenant_alpha PGPASSWORD=lrs-alpha-test psql -v ON_ERROR_STOP=1 "$@"
 }
 
+if version_error="$({ alpha_psql <<'SQL'
+SELECT *
+FROM persist_statement_batch(
+    'tenant-alpha',
+    '2.0',
+    convert_to('[{"id":"batch-mismatched-version"}]', 'UTF8'),
+    ARRAY['batch-mismatched-version'],
+    ARRAY['xapi-1.0.3-statement-comparison/v1'],
+    ARRAY[convert_to('comparison-batch-mismatched-version', 'UTF8')],
+    ARRAY[convert_to('{"id":"batch-mismatched-version"}', 'UTF8')]
+);
+SQL
+} 2>&1)"; then
+  echo "batch writer accepted an incompatible xAPI/comparison-version pair" >&2
+  exit 1
+fi
+[[ "$version_error" == *"xAPI version and Statement comparison version are incompatible"* ]] || {
+  echo "batch writer returned the wrong version-pair error: $version_error" >&2
+  exit 1
+}
+
 first_batch="$({ alpha_psql -At -F '|' <<'SQL'
 SELECT persisted_receipt_number, request_statement_index, persistence_outcome, persisted_statement_key
 FROM persist_statement_batch(

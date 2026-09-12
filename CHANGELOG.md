@@ -25,7 +25,7 @@
 - Exact-head Rust formatting, test, Clippy, rustdoc, 100% line-coverage, PostgreSQL invariant, transactional race, database-principal, batch-outcome, and shared-receipt batch gates, including pull requests stacked on non-default branches.
 - A workflow regression contract that prevents stacked pull requests from silently losing exact-head quality checks.
 - Self-contained PostgreSQL fixtures that reset test schema/roles and apply their own migration stage, with reverse-order CI proving no suite inherits hidden predecessor state.
-- An aggregate 100% LLVM line-coverage threshold alongside the unique uncovered-source-line gate, with Rust pinned to the exact 1.98.1 toolchain proven by hosted CI.
+- Rust pinned to the exact 1.98.1 toolchain proven by hosted CI while retaining the zero-uncovered-unique-source-line coverage gate.
 - Product-first README, Apache-2.0 repository license, public documentation landing source, and clarified document-resource revision/idempotency semantics carried forward from the foundation branch without rewriting stack history.
 
 ### Changed
