@@ -33,6 +33,7 @@ DECLARE
     v_candidate_outcome text;
     v_candidate_resolution text;
     v_has_conflict boolean := false;
+    v_canonical_xapi_version text;
 BEGIN
     v_authorized_tenant_key := public.authorized_tenant_key();
     IF v_authorized_tenant_key IS NULL
@@ -64,6 +65,8 @@ BEGIN
         RAISE EXCEPTION 'batch evidence arrays must be one-dimensional and one-based'
             USING ERRCODE = '22023';
     END IF;
+
+    v_canonical_xapi_version := public.canonical_xapi_version_label(p_received_xapi_version);
 
     v_item_count := cardinality(p_statement_keys);
     IF v_item_count = 0
@@ -173,7 +176,7 @@ BEGIN
 
         IF FOUND THEN
             v_content_hash := pg_catalog.sha256(p_comparison_bytes[v_item_position]);
-            IF v_existing.received_xapi_version = p_received_xapi_version
+            IF v_existing.received_xapi_version = v_canonical_xapi_version
                AND v_existing.statement_comparison_version = p_statement_comparison_versions[v_item_position]
                AND v_existing.content_hash = v_content_hash
                AND v_existing.comparison_bytes = p_comparison_bytes[v_item_position] THEN
@@ -239,7 +242,7 @@ BEGIN
             ) VALUES (
                 p_tenant_key,
                 p_statement_keys[v_item_position],
-                p_received_xapi_version,
+                v_canonical_xapi_version,
                 p_statement_comparison_versions[v_item_position],
                 v_content_hash,
                 p_comparison_bytes[v_item_position],
