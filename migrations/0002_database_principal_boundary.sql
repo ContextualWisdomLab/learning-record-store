@@ -100,10 +100,12 @@ STRICT
 PARALLEL SAFE
 SET search_path = pg_catalog
 AS $$
-    SELECT CASE p_received_xapi_version
-        WHEN '2.0' THEN 'xapi-2.0-statement-comparison/v1'
-        WHEN '2.0.0' THEN 'xapi-2.0-statement-comparison/v1'
-        WHEN '1.0.3' THEN 'xapi-1.0.3-statement-comparison/v1'
+    SELECT CASE
+        WHEN p_received_xapi_version IN ('2.0', '2.0.0')
+            THEN 'xapi-2.0-statement-comparison/v1'
+        WHEN p_received_xapi_version = '1.0'
+          OR p_received_xapi_version ~ '^1\.0\.(0|[1-9][0-9]*)$'
+            THEN 'xapi-1.0.3-statement-comparison/v1'
         ELSE NULL
     END;
 $$;
@@ -121,10 +123,11 @@ STRICT
 PARALLEL SAFE
 SET search_path = pg_catalog
 AS $$
-    SELECT CASE p_received_xapi_version
-        WHEN '2.0' THEN '2.0.0'
-        WHEN '2.0.0' THEN '2.0.0'
-        WHEN '1.0.3' THEN '1.0.3'
+    SELECT CASE
+        WHEN p_received_xapi_version IN ('2.0', '2.0.0') THEN '2.0.0'
+        WHEN p_received_xapi_version = '1.0'
+          OR p_received_xapi_version ~ '^1\.0\.(0|[1-9][0-9]*)$'
+            THEN '1.0.0'
         ELSE NULL
     END;
 $$;
