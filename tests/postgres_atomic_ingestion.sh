@@ -19,7 +19,7 @@ SET app.tenant_key = 'tenant-alpha';
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"statement-atomic"}', 'UTF8'),
     0,
     'statement-atomic',
@@ -39,7 +39,7 @@ SET app.tenant_key = 'tenant-alpha';
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('{ "id" : "statement-atomic" }', 'UTF8'),
     0,
     'statement-atomic',
@@ -59,7 +59,7 @@ SET app.tenant_key = 'tenant-alpha';
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"statement-atomic","conflict":true}', 'UTF8'),
     0,
     'statement-atomic',
@@ -137,7 +137,7 @@ SET app.tenant_key = 'tenant-alpha';
 SELECT *
 FROM persist_statement_occurrence(
     'tenant-beta',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"statement-cross-scope"}', 'UTF8'),
     0,
     'statement-cross-scope',
@@ -162,7 +162,7 @@ SET app.tenant_key = 'tenant-alpha';
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"statement-concurrent","request":"${request_variant}"}', 'UTF8'),
     0,
     'statement-concurrent',
@@ -219,7 +219,7 @@ SET app.tenant_key = 'tenant-alpha';
 SELECT persistence_outcome
 FROM persist_statement_occurrence(
     'tenant-alpha',
-    '2.0',
+    '2.0.0',
     convert_to('{"id":"statement-race-conflict","request":"${request_variant}"}', 'UTF8'),
     0,
     'statement-race-conflict',
