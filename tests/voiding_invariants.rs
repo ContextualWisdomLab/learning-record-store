@@ -46,7 +46,7 @@ fn self_voiding_is_rejected_before_persistence() {
         b"comparison:voiding".to_vec(),
         "statement-voiding",
     )
-        .expect_err("a Statement cannot void itself");
+    .expect_err("a Statement cannot void itself");
 
     assert!(matches!(
         &error,
@@ -94,10 +94,16 @@ fn a_voiding_statement_cannot_become_another_voiding_target() {
     let tenant = TenantKey::new("tenant-alpha").expect("tenant key");
     seed(&mut kernel, "statement-target-b");
     kernel
-        .ingest(voiding_candidate("statement-voiding-a", "statement-target-b"))
+        .ingest(voiding_candidate(
+            "statement-voiding-a",
+            "statement-target-b",
+        ))
         .expect("first voiding Statement accepted");
     kernel
-        .ingest(voiding_candidate("statement-voiding-c", "statement-voiding-a"))
+        .ingest(voiding_candidate(
+            "statement-voiding-c",
+            "statement-voiding-a",
+        ))
         .expect("second voiding Statement accepted before relation evaluation");
 
     kernel
