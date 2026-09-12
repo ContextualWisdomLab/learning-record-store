@@ -184,26 +184,21 @@ impl StatementKernel {
 mod cardinality_tests {
     use super::*;
 
-    struct OversizedBatch;
+    struct InconsistentBatch;
 
-    impl Iterator for OversizedBatch {
+    impl Iterator for InconsistentBatch {
         type Item = StatementCandidate;
 
         fn next(&mut self) -> Option<Self::Item> {
-            panic!("oversized batch must be rejected before item materialization");
+            None
         }
 
         fn size_hint(&self) -> (usize, Option<usize>) {
-            let count = MAX_DURABLE_BATCH_STATEMENT_COUNT + 1;
-            (count, Some(count))
+            (1, Some(1))
         }
     }
 
-    impl ExactSizeIterator for OversizedBatch {
-        fn len(&self) -> usize {
-            MAX_DURABLE_BATCH_STATEMENT_COUNT + 1
-        }
-    }
+    impl ExactSizeIterator for InconsistentBatch {}
 
     fn tenant() -> TenantKey {
         TenantKey::new("tenant-cardinality").expect("fixture tenant must be valid")
@@ -263,15 +258,40 @@ mod cardinality_tests {
     #[test]
     fn oversized_batch_fails_closed_on_public_ingestion_path_before_materialization() {
         let mut kernel = StatementKernel::default();
+        let oversized_batch = std::iter::repeat_with(|| candidate("must-not-materialize"))
+            .take(MAX_DURABLE_BATCH_STATEMENT_COUNT + 1);
 
         let error = kernel
             .ingest_batch(
                 tenant(),
                 XapiVersion::V2_0,
                 br#"[]"#.to_vec(),
-                OversizedBatch,
+                oversized_batch,
             )
             .expect_err("unpersistable occurrence indexes must fail closed");
+
+        assert_eq!(
+            error,
+            IngestionError::InvalidEvidence {
+                field: "statement_batch_cardinality"
+            }
+        );
+        assert!(kernel.receipts().is_empty());
+        assert!(kernel.occurrences().is_empty());
+    }
+
+    #[test]
+    fn inconsistent_exact_size_iterator_fails_closed_after_materialization() {
+        let mut kernel = StatementKernel::default();
+
+        let error = kernel
+            .ingest_batch(
+                tenant(),
+                XapiVersion::V2_0,
+                br#"[]"#.to_vec(),
+                InconsistentBatch,
+            )
+            .expect_err("a dishonest exact-size iterator must not issue a receipt");
 
         assert_eq!(
             error,

@@ -480,11 +480,13 @@ impl StatementKernel {
         &mut self,
         candidate: StatementCandidate,
     ) -> Result<IngestionOutcome, IngestionError> {
-        let receipt_number = self.begin_request(
-            candidate.tenant_key.clone(),
-            candidate.received_xapi_version,
-            candidate.raw_statement_bytes.clone(),
-        )?;
+        let receipt_number = self
+            .begin_request(
+                candidate.tenant_key.clone(),
+                candidate.received_xapi_version,
+                candidate.raw_statement_bytes.clone(),
+            )
+            .expect("a validated Statement candidate always contains raw evidence");
         self.ingest_at_receipt(receipt_number, 0, candidate)
     }
 
