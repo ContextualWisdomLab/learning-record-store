@@ -123,6 +123,22 @@ fn a_voiding_statement_cannot_become_another_voiding_target() {
 
 #[test]
 fn blank_voiding_target_is_rejected_by_the_validated_boundary() {
+    let invalid_source = StatementCandidate::new_voiding(
+        TenantKey::new("tenant-alpha").expect("tenant key"),
+        " ",
+        XapiVersion::V2_0,
+        br#"{}"#.to_vec(),
+        b"comparison:voiding".to_vec(),
+        "statement-target",
+    )
+    .expect_err("ordinary candidate validation still applies");
+    assert_eq!(
+        invalid_source,
+        IngestionError::InvalidIdentity {
+            field: "statement_key",
+        }
+    );
+
     let error = StatementCandidate::new_voiding(
         TenantKey::new("tenant-alpha").expect("tenant key"),
         "statement-voiding",
@@ -157,6 +173,10 @@ fn ordinary_statement_cannot_authorize_a_voiding_relation() {
         IngestionError::StatementIsNotVoiding {
             statement_key: "statement-ordinary".to_owned(),
         }
+    );
+    assert_eq!(
+        error.to_string(),
+        "statement is not voiding: statement-ordinary"
     );
     assert!(kernel.voiding_relations().is_empty());
 }
