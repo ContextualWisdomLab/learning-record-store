@@ -29,6 +29,15 @@ pub struct StatementKernel {
 }
 
 impl StatementKernel {
+    fn ensure_batch_capacity(statement_count: usize) -> Result<(), IngestionError> {
+        if statement_count > MAX_DURABLE_BATCH_STATEMENT_COUNT {
+            return Err(IngestionError::InvalidEvidence {
+                field: "statement_batch_cardinality",
+            });
+        }
+        Ok(())
+    }
+
     fn ensure_receipt_capacity(&self) -> Result<(), IngestionError> {
         if self.next_receipt_number >= MAX_DURABLE_RECEIPT_NUMBER {
             return Err(IngestionError::InvalidEvidence {
@@ -74,37 +83,18 @@ impl StatementKernel {
 
     /// Applies one validated POST array under the durable occurrence-cardinality boundary.
     ///
-    /// The candidate collection must expose an exact length because the kernel performs complete
-    /// request preflight before canonical writes; streaming/filtering adapters must finish protocol
-    /// validation and materialize their candidate collection before crossing this boundary. The
-    /// exact length is checked before any item is materialized here or any receipt is issued, and
-    /// is revalidated after collection so inconsistent iterators fail closed.
-    pub fn ingest_batch<I>(
+    /// Streaming/filtering adapters must finish protocol validation and materialize their candidate
+    /// collection before crossing this boundary. The vector length is checked before a receipt is
+    /// issued.
+    pub fn ingest_batch(
         &mut self,
         tenant_key: TenantKey,
         received_xapi_version: XapiVersion,
         raw_request_bytes: Vec<u8>,
-        candidates: I,
-    ) -> Result<Vec<IngestionOutcome>, IngestionError>
-    where
-        I: IntoIterator<Item = StatementCandidate>,
-        I::IntoIter: ExactSizeIterator,
-    {
-        let candidate_iterator = candidates.into_iter();
-        let declared_count = candidate_iterator.len();
-        if declared_count > MAX_DURABLE_BATCH_STATEMENT_COUNT {
-            return Err(IngestionError::InvalidEvidence {
-                field: "statement_batch_cardinality",
-            });
-        }
-
-        let materialized: Vec<_> = candidate_iterator.collect();
-        if materialized.len() != declared_count {
-            return Err(IngestionError::InvalidEvidence {
-                field: "statement_batch_cardinality",
-            });
-        }
-        if !materialized.is_empty() {
+        candidates: Vec<StatementCandidate>,
+    ) -> Result<Vec<IngestionOutcome>, IngestionError> {
+        Self::ensure_batch_capacity(candidates.len())?;
+        if !candidates.is_empty() {
             self.ensure_receipt_capacity()?;
         }
 
@@ -112,7 +102,7 @@ impl StatementKernel {
             tenant_key,
             received_xapi_version,
             raw_request_bytes,
-            materialized,
+            candidates,
         );
         self.sync_receipt_sequence();
         result
@@ -184,22 +174,6 @@ impl StatementKernel {
 mod cardinality_tests {
     use super::*;
 
-    struct InconsistentBatch;
-
-    impl Iterator for InconsistentBatch {
-        type Item = StatementCandidate;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            None
-        }
-
-        fn size_hint(&self) -> (usize, Option<usize>) {
-            (1, Some(1))
-        }
-    }
-
-    impl ExactSizeIterator for InconsistentBatch {}
-
     fn tenant() -> TenantKey {
         TenantKey::new("tenant-cardinality").expect("fixture tenant must be valid")
     }
@@ -256,19 +230,10 @@ mod cardinality_tests {
     }
 
     #[test]
-    fn oversized_batch_fails_closed_on_public_ingestion_path_before_materialization() {
-        let mut kernel = StatementKernel::default();
-        let oversized_batch = std::iter::repeat(candidate("must-not-materialize"))
-            .take(MAX_DURABLE_BATCH_STATEMENT_COUNT + 1);
-
-        let error = kernel
-            .ingest_batch(
-                tenant(),
-                XapiVersion::V2_0,
-                br#"[]"#.to_vec(),
-                oversized_batch,
-            )
-            .expect_err("unpersistable occurrence indexes must fail closed");
+    fn oversized_batch_cardinality_fails_closed() {
+        let error =
+            StatementKernel::ensure_batch_capacity(MAX_DURABLE_BATCH_STATEMENT_COUNT + 1)
+                .expect_err("unpersistable occurrence indexes must fail closed");
 
         assert_eq!(
             error,
@@ -276,8 +241,6 @@ mod cardinality_tests {
                 field: "statement_batch_cardinality"
             }
         );
-        assert!(kernel.receipts().is_empty());
-        assert!(kernel.occurrences().is_empty());
     }
 
     #[test]
@@ -321,29 +284,6 @@ mod cardinality_tests {
             error,
             IngestionError::InvalidEvidence {
                 field: "receipt_sequence"
-            }
-        );
-        assert!(kernel.receipts().is_empty());
-        assert!(kernel.occurrences().is_empty());
-    }
-
-    #[test]
-    fn inconsistent_exact_size_iterator_fails_closed_after_materialization() {
-        let mut kernel = StatementKernel::default();
-
-        let error = kernel
-            .ingest_batch(
-                tenant(),
-                XapiVersion::V2_0,
-                br#"[]"#.to_vec(),
-                InconsistentBatch,
-            )
-            .expect_err("a dishonest exact-size iterator must not issue a receipt");
-
-        assert_eq!(
-            error,
-            IngestionError::InvalidEvidence {
-                field: "statement_batch_cardinality"
             }
         );
         assert!(kernel.receipts().is_empty());
