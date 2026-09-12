@@ -10,7 +10,7 @@ export PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD
 
 psql -v ON_ERROR_STOP=1 -f migrations/0003_batch_rejection_outcome.sql
 
-receipt_number="$({ psql -At <<'SQL'
+receipt_number="$({ psql -Atq <<'SQL'
 INSERT INTO ingestion_receipt (
     tenant_key,
     received_xapi_version,
@@ -24,7 +24,7 @@ INSERT INTO ingestion_receipt (
 )
 RETURNING receipt_number;
 SQL
-} | tail -n 1)"
+} )"
 
 psql -v ON_ERROR_STOP=1 -v receipt_number="$receipt_number" <<'SQL'
 INSERT INTO statement_ingestion_item (

@@ -132,8 +132,8 @@ SQL
   exit 1
 }
 
-if alpha_psql <<'SQL'
-SELECT *
+duplicate_batch="$({ alpha_psql -At -F '|' <<'SQL'
+SELECT persisted_receipt_number, request_statement_index, persistence_outcome, persisted_statement_key
 FROM persist_statement_batch(
     'tenant-alpha',
     '2.0',
@@ -144,10 +144,35 @@ FROM persist_statement_batch(
     ARRAY[convert_to('{"id":"duplicate-batch"}', 'UTF8'), convert_to('{"id":"duplicate-batch"}', 'UTF8')]
 );
 SQL
-then
-  echo "durable batch primitive accepted duplicate statement identities" >&2
+} )"
+
+duplicate_receipt_count="$(printf '%s\n' "$duplicate_batch" | cut -d'|' -f1 | sort -u | sed '/^$/d' | wc -l | tr -d ' ')"
+[[ "$duplicate_receipt_count" == "1" ]] || {
+  echo "expected duplicate items to share one durable receipt, got: $duplicate_batch" >&2
   exit 1
-fi
+}
+
+duplicate_outcomes="$(printf '%s\n' "$duplicate_batch" | cut -d'|' -f2-4)"
+[[ "$duplicate_outcomes" == $'0|batch_rejected|\n1|batch_rejected|' ]] || {
+  echo "unexpected duplicate-batch outcomes: $duplicate_batch" >&2
+  exit 1
+}
+
+duplicate_receipt="$(printf '%s\n' "$duplicate_batch" | sed -n '1s/|.*//p')"
+duplicate_occurrence_count="$(psql -At -v receipt_number="$duplicate_receipt" <<'SQL'
+SELECT count(*)
+FROM statement_ingestion_item
+WHERE tenant_key = 'tenant-alpha'
+  AND receipt_number = :'receipt_number'::bigint
+  AND submitted_statement_key = 'duplicate-batch'
+  AND comparison_outcome = 'batch_rejected'
+  AND resolved_statement_key IS NULL;
+SQL
+)"
+[[ "$duplicate_occurrence_count" == "2" ]] || {
+  echo "expected both duplicate indexes to retain batch_rejected evidence, got: $duplicate_occurrence_count" >&2
+  exit 1
+}
 
 unexpected_duplicate_count="$(psql -At <<'SQL'
 SELECT count(*)
