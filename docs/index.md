@@ -4,6 +4,19 @@ title: Learning Record Store
 
 # Learning Record Store
 
+<!-- lrs-document-contract:start -->
+```json
+{
+  "canonical_xapi_surface": "2.0",
+  "compatibility_surfaces": ["1.0.3", "cmi5 Quartz"],
+  "learning_evidence_authority": "learning_record_store",
+  "production_maturity": "pre_release",
+  "published_service": false,
+  "standards_certification": false
+}
+```
+<!-- lrs-document-contract:end -->
+
 Learning Record Store is the ContextualWisdomLab persistence boundary for durable learning evidence. It is being built to validate, preserve, and query xAPI statements, document resources, attachments, and voiding relationships while keeping tenant boundaries and received evidence explicit.
 
 ## Product responsibility
