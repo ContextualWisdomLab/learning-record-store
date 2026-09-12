@@ -152,15 +152,14 @@ impl StatementKernel {
         self.inner.occurrences()
     }
 
-    /// Records a tenant-local one-target voiding relation without deleting either Statement.
-    pub fn record_voiding(
+    /// Records the relation declared by one stored, validator-classified voiding Statement.
+    pub fn record_voiding_statement(
         &mut self,
         tenant_key: &TenantKey,
         voiding_statement_key: &str,
-        voided_statement_key: &str,
     ) -> Result<(), IngestionError> {
         self.inner
-            .record_voiding(tenant_key, voiding_statement_key, voided_statement_key)
+            .record_voiding_statement(tenant_key, voiding_statement_key)
     }
 
     /// Returns all non-destructive voiding relations.
