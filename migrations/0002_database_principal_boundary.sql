@@ -102,7 +102,6 @@ SET search_path = pg_catalog
 AS $$
     SELECT CASE p_received_xapi_version
         WHEN '2.0.0' THEN 'xapi-2.0-statement-comparison/v1'
-        WHEN '2.0' THEN 'xapi-2.0-statement-comparison/v1'
         WHEN '1.0.3' THEN 'xapi-1.0.3-statement-comparison/v1'
         ELSE NULL
     END;
