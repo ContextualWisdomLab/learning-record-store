@@ -21,6 +21,18 @@ fn candidate(
     .expect("valid statement candidate")
 }
 
+fn voiding_candidate(statement: &str, voided_statement: &str) -> StatementCandidate {
+    StatementCandidate::new_voiding(
+        TenantKey::new("tenant-alpha").expect("tenant key"),
+        statement,
+        XapiVersion::V2_0,
+        format!(r#"{{"id":"{statement}","object":{{"objectType":"StatementRef","id":"{voided_statement}"}}}}"#).into_bytes(),
+        format!("voiding:{statement}:{voided_statement}").into_bytes(),
+        voided_statement,
+    )
+    .expect("validated voiding candidate")
+}
+
 #[test]
 fn first_ingest_preserves_exact_source_evidence() {
     let mut kernel = StatementKernel::default();
@@ -222,17 +234,11 @@ fn voiding_relation_never_deletes_original_statement() {
         ))
         .unwrap();
     kernel
-        .ingest(candidate(
-            "tenant-alpha",
-            "statement-voiding",
-            XapiVersion::V2_0,
-            r#"{"id":"statement-voiding"}"#,
-            b"voiding",
-        ))
+        .ingest(voiding_candidate("statement-voiding", "statement-original"))
         .unwrap();
 
     kernel
-        .record_voiding(&tenant, "statement-voiding", "statement-original")
+        .record_voiding_statement(&tenant, "statement-voiding")
         .expect("valid voiding relation");
 
     assert!(kernel.statement(&tenant, "statement-original").is_some());
@@ -294,7 +300,7 @@ fn missing_voiding_source_or_target_fails_closed() {
     let mut kernel = StatementKernel::default();
     let tenant = TenantKey::new("tenant-alpha").unwrap();
     let source_error = kernel
-        .record_voiding(&tenant, "missing-voiding", "missing-target")
+        .record_voiding_statement(&tenant, "missing-voiding")
         .expect_err("missing source cannot be linked");
     assert_eq!(
         source_error.to_string(),
@@ -302,16 +308,10 @@ fn missing_voiding_source_or_target_fails_closed() {
     );
 
     kernel
-        .ingest(candidate(
-            "tenant-alpha",
-            "statement-voiding",
-            XapiVersion::V2_0,
-            r#"{"id":"statement-voiding"}"#,
-            b"voiding",
-        ))
+        .ingest(voiding_candidate("statement-voiding", "missing-target"))
         .unwrap();
     let target_error = kernel
-        .record_voiding(&tenant, "statement-voiding", "missing-target")
+        .record_voiding_statement(&tenant, "statement-voiding")
         .expect_err("missing target cannot be linked");
     assert_eq!(
         target_error.to_string(),
