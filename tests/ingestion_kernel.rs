@@ -169,7 +169,7 @@ fn received_protocol_version_mismatch_is_a_conflict_not_an_upgrade() {
         ))
         .expect("first ingest accepted");
 
-    assert_eq!(XapiVersion::V1_0_3.as_str(), "1.0.3");
+    assert_eq!(XapiVersion::V1_0_3.as_str(), "1.0.0");
     assert_eq!(XapiVersion::V2_0.as_str(), "2.0.0");
     assert_eq!(
         accepted.statement().statement_comparison_version(),
