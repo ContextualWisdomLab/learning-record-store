@@ -123,6 +123,56 @@ SQL
   exit 1
 }
 
+invalid_one_zero_batch_before="$(psql -At -F '|' <<'SQL'
+SELECT
+    (SELECT count(*) FROM ingestion_receipt
+     WHERE tenant_key = 'tenant-alpha'
+       AND raw_request_bytes = convert_to('[{"id":"invalid-one-zero-batch-version"}]', 'UTF8')),
+    (SELECT count(*) FROM statement_record
+     WHERE tenant_key = 'tenant-alpha'
+       AND statement_key = 'invalid-one-zero-batch-version');
+SQL
+)"
+if invalid_one_zero_batch_error="$({ alpha_psql <<'SQL'
+\set VERBOSITY verbose
+SELECT *
+FROM persist_statement_batch(
+    'tenant-alpha',
+    '1.0.03',
+    convert_to('[{"id":"invalid-one-zero-batch-version"}]', 'UTF8'),
+    ARRAY['invalid-one-zero-batch-version'],
+    ARRAY['xapi-1.0.3-statement-comparison/v1'],
+    ARRAY[convert_to('comparison-invalid-one-zero-batch-version', 'UTF8')],
+    ARRAY[convert_to('{"id":"invalid-one-zero-batch-version"}', 'UTF8')]
+);
+SQL
+} 2>&1)"; then
+  echo "batch writer accepted a non-SemVer xAPI 1.0 patch label" >&2
+  exit 1
+fi
+[[ "$invalid_one_zero_batch_error" == *"22023"* ]] || {
+  echo "batch writer returned the wrong SQLSTATE for malformed xAPI 1.0: $invalid_one_zero_batch_error" >&2
+  exit 1
+}
+[[ "$invalid_one_zero_batch_error" == *"xAPI version and Statement comparison version are incompatible"* ]] || {
+  echo "batch writer returned the wrong error for malformed xAPI 1.0: $invalid_one_zero_batch_error" >&2
+  exit 1
+}
+invalid_one_zero_batch_after="$(psql -At -F '|' <<'SQL'
+SELECT
+    (SELECT count(*) FROM ingestion_receipt
+     WHERE tenant_key = 'tenant-alpha'
+       AND raw_request_bytes = convert_to('[{"id":"invalid-one-zero-batch-version"}]', 'UTF8')),
+    (SELECT count(*) FROM statement_record
+     WHERE tenant_key = 'tenant-alpha'
+       AND statement_key = 'invalid-one-zero-batch-version');
+SQL
+)"
+[[ "$invalid_one_zero_batch_before" == "0|0" && "$invalid_one_zero_batch_after" == "$invalid_one_zero_batch_before" ]] || {
+  echo "batch writer mutated evidence for malformed xAPI 1.0: before=$invalid_one_zero_batch_before after=$invalid_one_zero_batch_after" >&2
+  exit 1
+}
+
 first_batch="$({ alpha_psql -At -F '|' <<'SQL'
 SELECT persisted_receipt_number, request_statement_index, persistence_outcome, persisted_statement_key
 FROM persist_statement_batch(
