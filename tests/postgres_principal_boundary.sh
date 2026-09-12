@@ -139,6 +139,70 @@ SQL
   exit 1
 }
 
+one_zero_outcome="$(alpha_psql -At -F '|' <<'SQL'
+SELECT persistence_outcome, persisted_statement_key
+FROM persist_statement_occurrence(
+    'tenant-alpha',
+    '1.0',
+    convert_to('{"id":"one-zero-item-version"}', 'UTF8'),
+    0,
+    'one-zero-item-version',
+    'xapi-1.0.3-statement-comparison/v1',
+    convert_to('comparison-one-zero-item-version', 'UTF8'),
+    convert_to('{"id":"one-zero-item-version"}', 'UTF8')
+);
+SQL
+)"
+[[ "$one_zero_outcome" == "accepted|one-zero-item-version" ]] || {
+  echo "item writer did not accept xAPI 1.0 as 1.0.0: $one_zero_outcome" >&2
+  exit 1
+}
+[[ "$(psql -At -c "SELECT received_xapi_version FROM ingestion_receipt WHERE tenant_key = 'tenant-alpha' AND raw_request_bytes = convert_to('{\"id\":\"one-zero-item-version\"}', 'UTF8');")" == "1.0" ]] || {
+  echo "item writer did not retain the received xAPI 1.0 header" >&2
+  exit 1
+}
+[[ "$(psql -At -c "SELECT received_xapi_version FROM statement_record WHERE tenant_key = 'tenant-alpha' AND statement_key = 'one-zero-item-version';")" == "1.0.0" ]] || {
+  echo "item writer did not normalize xAPI 1.0 processing to 1.0.0" >&2
+  exit 1
+}
+
+one_zero_patch_replay="$(alpha_psql -At -F '|' <<'SQL'
+SELECT persistence_outcome, persisted_statement_key
+FROM persist_statement_occurrence(
+    'tenant-alpha',
+    '1.0.12',
+    convert_to('{"id":"one-zero-item-version"}', 'UTF8'),
+    0,
+    'one-zero-item-version',
+    'xapi-1.0.3-statement-comparison/v1',
+    convert_to('comparison-one-zero-item-version', 'UTF8'),
+    convert_to('{"id":"one-zero-item-version"}', 'UTF8')
+);
+SQL
+)"
+[[ "$one_zero_patch_replay" == "replayed|one-zero-item-version" ]] || {
+  echo "item writer did not treat valid xAPI 1.0.x headers as one compatible surface: $one_zero_patch_replay" >&2
+  exit 1
+}
+
+if alpha_psql <<'SQL'
+SELECT *
+FROM persist_statement_occurrence(
+    'tenant-alpha',
+    '1.0.03',
+    convert_to('{"id":"invalid-one-zero-version"}', 'UTF8'),
+    0,
+    'invalid-one-zero-version',
+    'xapi-1.0.3-statement-comparison/v1',
+    convert_to('comparison-invalid-one-zero-version', 'UTF8'),
+    convert_to('{"id":"invalid-one-zero-version"}', 'UTF8')
+);
+SQL
+then
+  echo "item writer accepted a non-SemVer xAPI 1.0 patch label" >&2
+  exit 1
+fi
+
 if alpha_psql <<'SQL'
 SELECT *
 FROM persist_statement_occurrence(

@@ -79,6 +79,50 @@ SQL
   exit 1
 }
 
+one_zero_batch="$(alpha_psql -At -F '|' <<'SQL'
+SELECT request_statement_index, persistence_outcome, persisted_statement_key
+FROM persist_statement_batch(
+    'tenant-alpha',
+    '1.0',
+    convert_to('[{"id":"one-zero-batch-version"}]', 'UTF8'),
+    ARRAY['one-zero-batch-version'],
+    ARRAY['xapi-1.0.3-statement-comparison/v1'],
+    ARRAY[convert_to('comparison-one-zero-batch-version', 'UTF8')],
+    ARRAY[convert_to('{"id":"one-zero-batch-version"}', 'UTF8')]
+);
+SQL
+)"
+[[ "$one_zero_batch" == "0|accepted|one-zero-batch-version" ]] || {
+  echo "batch writer did not accept xAPI 1.0 as 1.0.0: $one_zero_batch" >&2
+  exit 1
+}
+[[ "$(psql -At -c "SELECT received_xapi_version FROM ingestion_receipt WHERE tenant_key = 'tenant-alpha' AND raw_request_bytes = convert_to('[{\"id\":\"one-zero-batch-version\"}]', 'UTF8');")" == "1.0" ]] || {
+  echo "batch writer did not retain the received xAPI 1.0 header" >&2
+  exit 1
+}
+[[ "$(psql -At -c "SELECT received_xapi_version FROM statement_record WHERE tenant_key = 'tenant-alpha' AND statement_key = 'one-zero-batch-version';")" == "1.0.0" ]] || {
+  echo "batch writer did not normalize xAPI 1.0 processing to 1.0.0" >&2
+  exit 1
+}
+
+one_zero_batch_replay="$(alpha_psql -At -F '|' <<'SQL'
+SELECT request_statement_index, persistence_outcome, persisted_statement_key
+FROM persist_statement_batch(
+    'tenant-alpha',
+    '1.0.3',
+    convert_to('[{"id":"one-zero-batch-version"}]', 'UTF8'),
+    ARRAY['one-zero-batch-version'],
+    ARRAY['xapi-1.0.3-statement-comparison/v1'],
+    ARRAY[convert_to('comparison-one-zero-batch-version', 'UTF8')],
+    ARRAY[convert_to('{"id":"one-zero-batch-version"}', 'UTF8')]
+);
+SQL
+)"
+[[ "$one_zero_batch_replay" == "0|replayed|one-zero-batch-version" ]] || {
+  echo "batch writer did not treat xAPI 1.0 and 1.0.3 as one compatible surface: $one_zero_batch_replay" >&2
+  exit 1
+}
+
 first_batch="$({ alpha_psql -At -F '|' <<'SQL'
 SELECT persisted_receipt_number, request_statement_index, persistence_outcome, persisted_statement_key
 FROM persist_statement_batch(
