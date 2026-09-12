@@ -231,9 +231,8 @@ mod cardinality_tests {
 
     #[test]
     fn oversized_batch_cardinality_fails_closed() {
-        let error =
-            StatementKernel::ensure_batch_capacity(MAX_DURABLE_BATCH_STATEMENT_COUNT + 1)
-                .expect_err("unpersistable occurrence indexes must fail closed");
+        let error = StatementKernel::ensure_batch_capacity(MAX_DURABLE_BATCH_STATEMENT_COUNT + 1)
+            .expect_err("unpersistable occurrence indexes must fail closed");
 
         assert_eq!(
             error,
