@@ -166,6 +166,10 @@ jobs:
               "SECURITY DEFINER",
               "lrs_evidence_writer",
               "NOBYPASSRLS",
+              "CREATE FUNCTION statement_advisory_lock_key",
+              "CREATE FUNCTION statement_comparison_version_for_xapi",
+              "CREATE FUNCTION enforce_voiding_statement_roles",
+              "CREATE TRIGGER voiding_statement_roles_guard",
               "ALTER POLICY tenant_partition_scope_policy",
               "ALTER FUNCTION persist_statement_occurrence",
           )
@@ -190,6 +194,7 @@ jobs:
           required_atomic_batch_sql = (
               "CREATE FUNCTION persist_statement_batch",
               "pg_advisory_xact_lock",
+              "statement_comparison_version_for_xapi",
               "batch_rejected",
               "request_statement_index",
               "ALTER FUNCTION persist_statement_batch",
@@ -199,6 +204,8 @@ jobs:
                   raise SystemExit(f"missing atomic statement batch contract: {required_fragment}")
 
           all_sql = sql + principal_sql + batch_sql + atomic_batch_sql
+          if "hashtext" in all_sql:
+              raise SystemExit("controlled writers must use the reviewed stable bigint lock-key derivation")
           if re.search(r"\b(?:CREATE TABLE|CREATE INDEX|CREATE SCHEMA)\s+id\b", all_sql, re.IGNORECASE):
               raise SystemExit("standalone generic persistence object name 'id' is forbidden")
 

@@ -9,6 +9,8 @@ The executable Rust core owns the deterministic decision between `accepted`, `re
 
 `StatementKernel` is the in-process domain reference. Its `ingest_batch` path retains one exact request receipt, validates tenant/version context and duplicate IDs before stored-evidence comparison, records every submitted index when the batch is rejected, and performs no canonical writes until the whole preflight succeeds. PostgreSQL implements the corresponding single-item durable decision through `persist_statement_occurrence` and, in migration 0004, the proposed validated POST-array transaction through `persist_statement_batch`. The latter writes one request receipt for the complete array and either persists all conflict-free canonical changes or none when a stored conflict exists. A Rust `StatementEvidenceRepository` and network/application adapter remain unfinished.
 
+Both controlled PostgreSQL writers fail closed unless the received xAPI label matches its reviewed Statement-comparison algorithm label. The pure kernel and a serialized database trigger also reject any relation that would make a Statement both a voiding Statement and the target of another voiding Statement; the trigger acquires the same stable per-Statement advisory locks in deterministic key order so concurrent inserts cannot create the forbidden role overlap.
+
 ## DDD model
 
 **Core subdomain:** Learning Record Evidence.

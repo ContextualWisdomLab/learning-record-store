@@ -90,6 +90,26 @@ $$;
 ALTER FUNCTION statement_advisory_lock_key(text, text) OWNER TO lrs_evidence_writer;
 REVOKE ALL ON FUNCTION statement_advisory_lock_key(text, text) FROM PUBLIC;
 
+CREATE FUNCTION statement_comparison_version_for_xapi(
+    p_received_xapi_version text
+)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+STRICT
+PARALLEL SAFE
+SET search_path = pg_catalog
+AS $$
+    SELECT CASE p_received_xapi_version
+        WHEN '2.0' THEN 'xapi-2.0-statement-comparison/v1'
+        WHEN '1.0.3' THEN 'xapi-1.0.3-statement-comparison/v1'
+        ELSE NULL
+    END;
+$$;
+
+ALTER FUNCTION statement_comparison_version_for_xapi(text) OWNER TO lrs_evidence_writer;
+REVOKE ALL ON FUNCTION statement_comparison_version_for_xapi(text) FROM PUBLIC;
+
 ALTER POLICY tenant_partition_scope_policy ON tenant_partition
     USING (tenant_key = authorized_tenant_key())
     WITH CHECK (tenant_key = authorized_tenant_key());
@@ -168,6 +188,11 @@ BEGIN
        OR p_statement_comparison_version IS NULL
        OR p_statement_comparison_version ~ '^[[:space:]]*$' THEN
         RAISE EXCEPTION 'statement persistence identity/version fields must be nonblank'
+            USING ERRCODE = '22023';
+    END IF;
+    IF public.statement_comparison_version_for_xapi(p_received_xapi_version)
+       IS DISTINCT FROM p_statement_comparison_version THEN
+        RAISE EXCEPTION 'xAPI version and Statement comparison version are incompatible'
             USING ERRCODE = '22023';
     END IF;
     IF octet_length(p_raw_request_bytes) = 0
@@ -270,5 +295,52 @@ ALTER FUNCTION persist_statement_occurrence(
 REVOKE ALL ON FUNCTION persist_statement_occurrence(
     text, text, bytea, integer, text, text, bytea, bytea
 ) FROM PUBLIC;
+
+CREATE FUNCTION enforce_voiding_statement_roles()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    v_first_statement_key text;
+    v_second_statement_key text;
+BEGIN
+    v_first_statement_key := LEAST(NEW.voiding_statement_key, NEW.voided_statement_key);
+    v_second_statement_key := GREATEST(NEW.voiding_statement_key, NEW.voided_statement_key);
+
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+        public.statement_advisory_lock_key(NEW.tenant_key, v_first_statement_key)
+    );
+    IF v_second_statement_key IS DISTINCT FROM v_first_statement_key THEN
+        PERFORM pg_catalog.pg_advisory_xact_lock(
+            public.statement_advisory_lock_key(NEW.tenant_key, v_second_statement_key)
+        );
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM public.voiding_relation AS existing_relation
+        WHERE existing_relation.tenant_key = NEW.tenant_key
+          AND (
+              existing_relation.voiding_statement_key = NEW.voided_statement_key
+              OR existing_relation.voided_statement_key = NEW.voiding_statement_key
+          )
+    ) THEN
+        RAISE EXCEPTION 'a voiding Statement cannot itself be voided'
+            USING ERRCODE = '23514';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+ALTER FUNCTION enforce_voiding_statement_roles() OWNER TO lrs_evidence_writer;
+REVOKE ALL ON FUNCTION enforce_voiding_statement_roles() FROM PUBLIC;
+
+CREATE TRIGGER voiding_statement_roles_guard
+BEFORE INSERT ON voiding_relation
+FOR EACH ROW
+EXECUTE FUNCTION enforce_voiding_statement_roles();
 
 COMMIT;

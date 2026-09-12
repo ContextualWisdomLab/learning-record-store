@@ -86,6 +86,11 @@ BEGIN
             RAISE EXCEPTION 'batch statement identity, comparison version, and evidence bytes must be present'
                 USING ERRCODE = '22023';
         END IF;
+        IF public.statement_comparison_version_for_xapi(p_received_xapi_version)
+           IS DISTINCT FROM p_statement_comparison_versions[v_item_position] THEN
+            RAISE EXCEPTION 'xAPI version and Statement comparison version are incompatible'
+                USING ERRCODE = '22023';
+        END IF;
     END LOOP;
 
     IF (

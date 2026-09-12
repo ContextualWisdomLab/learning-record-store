@@ -791,6 +791,16 @@ impl StatementKernel {
                 voided_statement_key: voided_statement_key.to_owned(),
             });
         }
+        if self.voiding_relations.iter().any(|relation| {
+            relation.tenant_key == *tenant_key
+                && (relation.voiding_statement_key == voided_statement_key
+                    || relation.voided_statement_key == voiding_statement_key)
+        }) {
+            return Err(IngestionError::InvalidVoidingRelation {
+                voiding_statement_key: voiding_statement_key.to_owned(),
+                voided_statement_key: voided_statement_key.to_owned(),
+            });
+        }
         if let Some(existing) = self.voiding_relations.iter().find(|relation| {
             relation.tenant_key == *tenant_key
                 && relation.voiding_statement_key == voiding_statement_key

@@ -26,6 +26,8 @@
 - A workflow regression contract that prevents stacked pull requests from silently losing exact-head quality checks.
 - Self-contained PostgreSQL fixtures that reset test schema/roles and apply their own migration stage, with reverse-order CI proving no suite inherits hidden predecessor state.
 - Rust pinned to the exact 1.98.1 toolchain proven by hosted CI while retaining the zero-uncovered-unique-source-line coverage gate.
+- Rust and concurrent PostgreSQL regression cases preventing a voiding Statement from becoming another voiding Statement's target.
+- Item and batch PostgreSQL regression cases rejecting incompatible received-xAPI/comparison-algorithm version pairs before durable mutation.
 - Product-first README, Apache-2.0 repository license, public documentation landing source, and clarified document-resource revision/idempotency semantics carried forward from the foundation branch without rewriting stack history.
 
 ### Changed
@@ -43,4 +45,5 @@
 - Unified controlled single-item and batch writes on the same transaction-scoped per-Statement advisory-lock protocol, acquired in deterministic order for batches, so an overlapping controlled writer cannot invalidate batch preflight without serializing unrelated tenant evidence.
 - Replaced undocumented `hashtext` advisory-lock inputs with one length-delimited SHA-256-derived signed `bigint` lock key shared by item and batch writers.
 - Split replacement CHECK-constraint installation from existing-row validation so migration 0003 does not retain an `ACCESS EXCLUSIVE` lock during its validation scan.
+- Added a shared protocol/comparison-version mapping at the controlled writer boundary and a lock-serialized voiding-role guard at the relational boundary.
 - Downgraded ADR 0002 from Accepted to Proposed while its authorization implementation remains only on the unmerged writer stack; acceptance now requires current exact-head evidence and ordinary protected-branch integration.
