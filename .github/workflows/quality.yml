@@ -249,32 +249,16 @@ jobs:
       - name: Validate workflow concurrency contract
         run: python3 tests/test_workflow_concurrency_contract.py
 
-      - name: Exercise PostgreSQL tenant and immutability invariants
+      # Run the deepest migration consumer first so no database test can
+      # accidentally inherit schema, roles, or tenants from a predecessor.
+      - name: Exercise PostgreSQL shared-receipt batch transaction
         env:
           PGHOST: 127.0.0.1
           PGPORT: "5432"
           PGDATABASE: learning_record_store
           PGUSER: postgres
           PGPASSWORD: postgres
-        run: bash tests/postgres_evidence.sh
-
-      - name: Exercise PostgreSQL atomic ingestion races
-        env:
-          PGHOST: 127.0.0.1
-          PGPORT: "5432"
-          PGDATABASE: learning_record_store
-          PGUSER: postgres
-          PGPASSWORD: postgres
-        run: bash tests/postgres_atomic_ingestion.sh
-
-      - name: Exercise authenticated database-principal tenant boundary
-        env:
-          PGHOST: 127.0.0.1
-          PGPORT: "5432"
-          PGDATABASE: learning_record_store
-          PGUSER: postgres
-          PGPASSWORD: postgres
-        run: bash tests/postgres_principal_boundary.sh
+        run: bash tests/postgres_batch_transaction.sh
 
       - name: Exercise PostgreSQL batch rejection outcomes
         env:
@@ -285,14 +269,32 @@ jobs:
           PGPASSWORD: postgres
         run: bash tests/postgres_batch_outcomes.sh
 
-      - name: Exercise PostgreSQL shared-receipt batch transaction
+      - name: Exercise authenticated database-principal tenant boundary
         env:
           PGHOST: 127.0.0.1
           PGPORT: "5432"
           PGDATABASE: learning_record_store
           PGUSER: postgres
           PGPASSWORD: postgres
-        run: bash tests/postgres_batch_transaction.sh
+        run: bash tests/postgres_principal_boundary.sh
+
+      - name: Exercise PostgreSQL atomic ingestion races
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_atomic_ingestion.sh
+
+      - name: Exercise PostgreSQL tenant and immutability invariants
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: learning_record_store
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/postgres_evidence.sh
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
