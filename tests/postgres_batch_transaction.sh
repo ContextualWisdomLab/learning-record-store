@@ -35,6 +35,44 @@ fi
   exit 1
 }
 
+before_shorthand_receipts="$(psql -At -c "SELECT count(*) FROM ingestion_receipt WHERE tenant_key = 'tenant-alpha';")"
+before_shorthand_statements="$(psql -At -c "SELECT count(*) FROM statement_record WHERE tenant_key = 'tenant-alpha';")"
+if shorthand_error="$({ alpha_psql <<'SQL'
+\set VERBOSITY verbose
+SELECT *
+FROM persist_statement_batch(
+    'tenant-alpha',
+    '2.0',
+    convert_to('[{"id":"non-normative-batch-version"}]', 'UTF8'),
+    ARRAY['non-normative-batch-version'],
+    ARRAY['xapi-2.0-statement-comparison/v1'],
+    ARRAY[convert_to('comparison-non-normative-batch-version', 'UTF8')],
+    ARRAY[convert_to('{"id":"non-normative-batch-version"}', 'UTF8')]
+);
+SQL
+} 2>&1)"; then
+  echo "batch writer accepted the non-normative xAPI 2.0 shorthand" >&2
+  exit 1
+fi
+[[ "$shorthand_error" == *"22023"* ]] || {
+  echo "batch writer returned the wrong SQLSTATE for xAPI shorthand: $shorthand_error" >&2
+  exit 1
+}
+[[ "$shorthand_error" == *"xAPI version and Statement comparison version are incompatible"* ]] || {
+  echo "batch writer returned the wrong xAPI shorthand error: $shorthand_error" >&2
+  exit 1
+}
+after_shorthand_receipts="$(psql -At -c "SELECT count(*) FROM ingestion_receipt WHERE tenant_key = 'tenant-alpha';")"
+after_shorthand_statements="$(psql -At -c "SELECT count(*) FROM statement_record WHERE tenant_key = 'tenant-alpha';")"
+[[ "$after_shorthand_receipts" == "$before_shorthand_receipts" ]] || {
+  echo "batch shorthand rejection leaked a receipt" >&2
+  exit 1
+}
+[[ "$after_shorthand_statements" == "$before_shorthand_statements" ]] || {
+  echo "batch shorthand rejection mutated canonical statements" >&2
+  exit 1
+}
+
 first_batch="$({ alpha_psql -At -F '|' <<'SQL'
 SELECT persisted_receipt_number, request_statement_index, persistence_outcome, persisted_statement_key
 FROM persist_statement_batch(
