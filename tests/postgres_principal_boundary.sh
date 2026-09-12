@@ -93,42 +93,49 @@ fi
   exit 1
 }
 
-before_shorthand_receipts="$(psql -At -c "SELECT count(*) FROM ingestion_receipt WHERE tenant_key = 'tenant-alpha';")"
-before_shorthand_statements="$(psql -At -c "SELECT count(*) FROM statement_record WHERE tenant_key = 'tenant-alpha';")"
-if shorthand_error="$({ alpha_psql <<'SQL'
-\set VERBOSITY verbose
-SELECT *
+shorthand_outcome="$(alpha_psql -At -F '|' <<'SQL'
+SELECT persistence_outcome, persisted_statement_key
 FROM persist_statement_occurrence(
     'tenant-alpha',
     '2.0',
-    convert_to('{"id":"non-normative-item-version"}', 'UTF8'),
+    convert_to('{"id":"two-zero-item-version"}', 'UTF8'),
     0,
-    'non-normative-item-version',
+    'two-zero-item-version',
     'xapi-2.0-statement-comparison/v1',
-    convert_to('comparison-non-normative-item-version', 'UTF8'),
-    convert_to('{"id":"non-normative-item-version"}', 'UTF8')
+    convert_to('comparison-two-zero-item-version', 'UTF8'),
+    convert_to('{"id":"two-zero-item-version"}', 'UTF8')
 );
 SQL
-} 2>&1)"; then
-  echo "item writer accepted the non-normative xAPI 2.0 shorthand" >&2
-  exit 1
-fi
-[[ "$shorthand_error" == *"22023"* ]] || {
-  echo "item writer returned the wrong SQLSTATE for xAPI shorthand: $shorthand_error" >&2
+)"
+[[ "$shorthand_outcome" == "accepted|two-zero-item-version" ]] || {
+  echo "item writer did not accept xAPI 2.0 as 2.0.0: $shorthand_outcome" >&2
   exit 1
 }
-[[ "$shorthand_error" == *"xAPI version and Statement comparison version are incompatible"* ]] || {
-  echo "item writer returned the wrong xAPI shorthand error: $shorthand_error" >&2
+[[ "$(psql -At -c "SELECT received_xapi_version FROM ingestion_receipt WHERE tenant_key = 'tenant-alpha' AND raw_request_bytes = convert_to('{\"id\":\"two-zero-item-version\"}', 'UTF8');")" == "2.0" ]] || {
+  echo "item writer did not retain the received xAPI 2.0 header" >&2
   exit 1
 }
-after_shorthand_receipts="$(psql -At -c "SELECT count(*) FROM ingestion_receipt WHERE tenant_key = 'tenant-alpha';")"
-after_shorthand_statements="$(psql -At -c "SELECT count(*) FROM statement_record WHERE tenant_key = 'tenant-alpha';")"
-[[ "$after_shorthand_receipts" == "$before_shorthand_receipts" ]] || {
-  echo "item shorthand rejection leaked a receipt" >&2
+[[ "$(psql -At -c "SELECT received_xapi_version FROM statement_record WHERE tenant_key = 'tenant-alpha' AND statement_key = 'two-zero-item-version';")" == "2.0.0" ]] || {
+  echo "item writer did not normalize xAPI 2.0 canonical processing to 2.0.0" >&2
   exit 1
 }
-[[ "$after_shorthand_statements" == "$before_shorthand_statements" ]] || {
-  echo "item shorthand rejection mutated canonical statements" >&2
+
+canonical_replay="$(alpha_psql -At -F '|' <<'SQL'
+SELECT persistence_outcome, persisted_statement_key
+FROM persist_statement_occurrence(
+    'tenant-alpha',
+    '2.0.0',
+    convert_to('{"id":"two-zero-item-version"}', 'UTF8'),
+    0,
+    'two-zero-item-version',
+    'xapi-2.0-statement-comparison/v1',
+    convert_to('comparison-two-zero-item-version', 'UTF8'),
+    convert_to('{"id":"two-zero-item-version"}', 'UTF8')
+);
+SQL
+)"
+[[ "$canonical_replay" == "replayed|two-zero-item-version" ]] || {
+  echo "item writer did not treat xAPI 2.0 and 2.0.0 as the same protocol surface: $canonical_replay" >&2
   exit 1
 }
 
