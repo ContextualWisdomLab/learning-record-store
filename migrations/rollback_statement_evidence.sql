@@ -34,6 +34,7 @@ DROP TABLE tenant_database_principal;
 DROP TABLE tenant_partition;
 
 DROP FUNCTION enforce_voiding_statement_roles();
+DROP FUNCTION canonical_xapi_version_label(text);
 DROP FUNCTION statement_comparison_version_for_xapi(text);
 DROP FUNCTION statement_advisory_lock_key(text, text);
 DROP FUNCTION authorized_tenant_key();
