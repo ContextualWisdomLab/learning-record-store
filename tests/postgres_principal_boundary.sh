@@ -8,39 +8,7 @@ set -euo pipefail
 : "${PGPASSWORD:=postgres}"
 export PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD
 
-psql -v ON_ERROR_STOP=1 -f migrations/0002_database_principal_boundary.sql
-
-psql -v ON_ERROR_STOP=1 <<'SQL'
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lrs_tenant_alpha') THEN
-        CREATE ROLE lrs_tenant_alpha LOGIN PASSWORD 'lrs-alpha-test' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lrs_tenant_beta') THEN
-        CREATE ROLE lrs_tenant_beta LOGIN PASSWORD 'lrs-beta-test' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-    END IF;
-END
-$$;
-
-INSERT INTO tenant_partition (tenant_key)
-VALUES ('tenant-alpha'), ('tenant-beta')
-ON CONFLICT (tenant_key) DO NOTHING;
-
-INSERT INTO tenant_database_principal (database_principal_name, tenant_key)
-VALUES
-    ('lrs_tenant_alpha', 'tenant-alpha'),
-    ('lrs_tenant_beta', 'tenant-beta')
-ON CONFLICT (database_principal_name)
-DO UPDATE SET tenant_key = EXCLUDED.tenant_key;
-
-GRANT CONNECT ON DATABASE learning_record_store TO lrs_tenant_alpha, lrs_tenant_beta;
-GRANT USAGE ON SCHEMA public TO lrs_tenant_alpha, lrs_tenant_beta;
-GRANT SELECT ON tenant_partition, ingestion_receipt, statement_record, statement_ingestion_item, voiding_relation
-    TO lrs_tenant_alpha, lrs_tenant_beta;
-GRANT EXECUTE ON FUNCTION persist_statement_occurrence(
-    text, text, bytea, integer, text, text, bytea, bytea
-) TO lrs_tenant_alpha, lrs_tenant_beta;
-SQL
+bash tests/postgres_fixture_setup.sh principal
 
 alpha_psql() {
   PGUSER=lrs_tenant_alpha PGPASSWORD=lrs-alpha-test psql -v ON_ERROR_STOP=1 "$@"

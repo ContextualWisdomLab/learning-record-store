@@ -8,11 +8,7 @@ set -euo pipefail
 : "${PGPASSWORD:=postgres}"
 export PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD
 
-psql -v ON_ERROR_STOP=1 <<'SQL'
-GRANT EXECUTE ON FUNCTION persist_statement_occurrence(
-    text, text, bytea, integer, text, text, bytea, bytea
-) TO lrs_app;
-SQL
+bash tests/postgres_fixture_setup.sh atomic
 
 app_psql() {
   PGUSER=lrs_app PGPASSWORD=lrs-app-test psql -v ON_ERROR_STOP=1 "$@"

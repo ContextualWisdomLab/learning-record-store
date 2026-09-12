@@ -8,16 +8,7 @@ set -euo pipefail
 : "${PGPASSWORD:=postgres}"
 export PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD
 
-psql -v ON_ERROR_STOP=1 -f migrations/0001_statement_evidence.sql
-
-psql -v ON_ERROR_STOP=1 <<'SQL'
-CREATE ROLE lrs_app LOGIN PASSWORD 'lrs-app-test' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
-GRANT CONNECT ON DATABASE learning_record_store TO lrs_app;
-GRANT USAGE ON SCHEMA public TO lrs_app;
-GRANT SELECT, INSERT ON tenant_partition, ingestion_receipt, statement_record, statement_ingestion_item, voiding_relation TO lrs_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO lrs_app;
-INSERT INTO tenant_partition (tenant_key) VALUES ('tenant-alpha'), ('tenant-beta');
-SQL
+bash tests/postgres_fixture_setup.sh evidence
 
 app_psql() {
   PGUSER=lrs_app PGPASSWORD=lrs-app-test psql -v ON_ERROR_STOP=1 "$@"

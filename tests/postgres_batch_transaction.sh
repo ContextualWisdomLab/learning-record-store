@@ -8,13 +8,7 @@ set -euo pipefail
 : "${PGPASSWORD:=postgres}"
 export PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD
 
-psql -v ON_ERROR_STOP=1 -f migrations/0004_atomic_statement_batch.sql
-
-psql -v ON_ERROR_STOP=1 <<'SQL'
-GRANT EXECUTE ON FUNCTION persist_statement_batch(
-    text, text, bytea, text[], text[], bytea[], bytea[]
-) TO lrs_tenant_alpha;
-SQL
+bash tests/postgres_fixture_setup.sh batch-transaction
 
 alpha_psql() {
   PGUSER=lrs_tenant_alpha PGPASSWORD=lrs-alpha-test psql -v ON_ERROR_STOP=1 "$@"

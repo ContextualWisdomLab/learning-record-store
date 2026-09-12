@@ -61,6 +61,7 @@ jobs:
               Path("tests/postgres_principal_boundary.sh"),
               Path("tests/postgres_batch_outcomes.sh"),
               Path("tests/postgres_batch_transaction.sh"),
+              Path("tests/postgres_fixture_setup.sh"),
               Path("migrations/0001_statement_evidence.sql"),
               Path("migrations/0002_database_principal_boundary.sql"),
               Path("migrations/0003_batch_rejection_outcome.sql"),

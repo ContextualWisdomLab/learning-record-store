@@ -8,7 +8,7 @@ set -euo pipefail
 : "${PGPASSWORD:=postgres}"
 export PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD
 
-psql -v ON_ERROR_STOP=1 -f migrations/0003_batch_rejection_outcome.sql
+bash tests/postgres_fixture_setup.sh batch-outcomes
 
 receipt_number="$({ psql -Atq <<'SQL'
 INSERT INTO ingestion_receipt (
