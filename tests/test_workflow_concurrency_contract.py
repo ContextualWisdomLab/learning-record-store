@@ -8,5 +8,5 @@ assert "branches:" not in pull_request_block
 assert "${{ github.workflow }}-${{ github.repository }}-" in workflow
 assert "github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id" in workflow
 assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
-assert "--text --show-missing-lines --fail-under-lines 100" in workflow
+assert "--text --show-missing-lines --show-instantiations --fail-under-lines 100" in workflow
 assert "--fail-uncovered-lines 0" not in workflow
