@@ -104,7 +104,7 @@ AS $$
         WHEN p_received_xapi_version IN ('2.0', '2.0.0')
             THEN 'xapi-2.0-statement-comparison/v1'
         WHEN p_received_xapi_version = '1.0'
-          OR p_received_xapi_version LIKE '1.0.%'
+          OR p_received_xapi_version ~ '^1\.0\.(0|[1-9][0-9]*)$'
             THEN 'xapi-1.0.3-statement-comparison/v1'
         ELSE NULL
     END;
@@ -126,7 +126,7 @@ AS $$
     SELECT CASE
         WHEN p_received_xapi_version IN ('2.0', '2.0.0') THEN '2.0.0'
         WHEN p_received_xapi_version = '1.0'
-          OR p_received_xapi_version LIKE '1.0.%'
+          OR p_received_xapi_version ~ '^1\.0\.(0|[1-9][0-9]*)$'
             THEN '1.0.0'
         ELSE NULL
     END;
