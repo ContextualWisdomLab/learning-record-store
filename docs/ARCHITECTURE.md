@@ -31,7 +31,7 @@ The Learning Record Store is the authoritative persistence service for xAPI lear
 
 ## Version boundary
 
-xAPI 2.0 is the canonical target. xAPI 1.0.3 support exists only as an explicit compatibility surface required by cmi5 Quartz. Historical statements are retained in their received version and are never silently rewritten. Replay comparison follows the Statement Comparison Requirements of the received surface rather than raw request-body equality. Compatibility transformations are owned by `compatibility_adapter`; their outputs remain provenance artifacts linked to received evidence and are not promoted into a second canonical Statement identity.
+xAPI 2.0 is the canonical target; its exact request and persisted protocol label is `2.0.0`. xAPI 1.0.3 support exists only as an explicit compatibility surface required by cmi5 Quartz. Historical statements are retained in their received version and are never silently rewritten. Replay comparison follows the Statement Comparison Requirements of the received surface rather than raw request-body equality. Compatibility transformations are owned by `compatibility_adapter`; their outputs remain provenance artifacts linked to received evidence and are not promoted into a second canonical Statement identity.
 
 ## Storage boundary
 
