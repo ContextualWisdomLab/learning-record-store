@@ -101,6 +101,7 @@ PARALLEL SAFE
 SET search_path = pg_catalog
 AS $$
     SELECT CASE p_received_xapi_version
+        WHEN '2.0' THEN 'xapi-2.0-statement-comparison/v1'
         WHEN '2.0.0' THEN 'xapi-2.0-statement-comparison/v1'
         WHEN '1.0.3' THEN 'xapi-1.0.3-statement-comparison/v1'
         ELSE NULL
@@ -109,6 +110,27 @@ $$;
 
 ALTER FUNCTION statement_comparison_version_for_xapi(text) OWNER TO lrs_evidence_writer;
 REVOKE ALL ON FUNCTION statement_comparison_version_for_xapi(text) FROM PUBLIC;
+
+CREATE FUNCTION canonical_xapi_version_label(
+    p_received_xapi_version text
+)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+STRICT
+PARALLEL SAFE
+SET search_path = pg_catalog
+AS $$
+    SELECT CASE p_received_xapi_version
+        WHEN '2.0' THEN '2.0.0'
+        WHEN '2.0.0' THEN '2.0.0'
+        WHEN '1.0.3' THEN '1.0.3'
+        ELSE NULL
+    END;
+$$;
+
+ALTER FUNCTION canonical_xapi_version_label(text) OWNER TO lrs_evidence_writer;
+REVOKE ALL ON FUNCTION canonical_xapi_version_label(text) FROM PUBLIC;
 
 ALTER POLICY tenant_partition_scope_policy ON tenant_partition
     USING (tenant_key = authorized_tenant_key())
@@ -169,6 +191,7 @@ DECLARE
     v_outcome text;
     v_resolved_statement_key text;
     v_authorized_tenant_key text;
+    v_canonical_xapi_version text;
 BEGIN
     v_authorized_tenant_key := public.authorized_tenant_key();
     IF v_authorized_tenant_key IS NULL
@@ -195,6 +218,7 @@ BEGIN
         RAISE EXCEPTION 'xAPI version and Statement comparison version are incompatible'
             USING ERRCODE = '22023';
     END IF;
+    v_canonical_xapi_version := public.canonical_xapi_version_label(p_received_xapi_version);
     IF octet_length(p_raw_request_bytes) = 0
        OR octet_length(p_comparison_bytes) = 0
        OR octet_length(p_raw_statement_bytes) = 0 THEN
@@ -234,7 +258,7 @@ BEGIN
         ) VALUES (
             p_tenant_key,
             p_statement_key,
-            p_received_xapi_version,
+            v_canonical_xapi_version,
             p_statement_comparison_version,
             v_content_hash,
             p_comparison_bytes,
@@ -255,7 +279,7 @@ BEGIN
         WHERE statement_row.tenant_key = p_tenant_key
           AND statement_row.statement_key = p_statement_key;
 
-        IF v_existing.received_xapi_version = p_received_xapi_version
+        IF v_existing.received_xapi_version = v_canonical_xapi_version
            AND v_existing.statement_comparison_version = p_statement_comparison_version
            AND v_existing.content_hash = v_content_hash
            AND v_existing.comparison_bytes = p_comparison_bytes THEN
