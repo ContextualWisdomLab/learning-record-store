@@ -38,12 +38,14 @@ fn seed(kernel: &mut StatementKernel, statement_key: &str) {
 
 #[test]
 fn self_voiding_is_rejected_before_persistence() {
-    let mut kernel = StatementKernel::default();
-    let tenant = TenantKey::new("tenant-alpha").expect("tenant key");
-    seed(&mut kernel, "statement-voiding");
-
-    let error = kernel
-        .record_voiding(&tenant, "statement-voiding", "statement-voiding")
+    let error = StatementCandidate::new_voiding(
+        TenantKey::new("tenant-alpha").expect("tenant key"),
+        "statement-voiding",
+        XapiVersion::V2_0,
+        br#"{"id":"statement-voiding"}"#.to_vec(),
+        b"comparison:voiding".to_vec(),
+        "statement-voiding",
+    )
         .expect_err("a Statement cannot void itself");
 
     assert!(matches!(
@@ -54,36 +56,32 @@ fn self_voiding_is_rejected_before_persistence() {
         error.to_string(),
         "invalid voiding relation: statement-voiding cannot void statement-voiding"
     );
-    assert!(kernel.voiding_relations().is_empty());
 }
 
 #[test]
-fn one_voiding_statement_cannot_acquire_multiple_targets() {
+fn immutable_statement_cannot_change_its_parsed_voiding_target() {
     let mut kernel = StatementKernel::default();
     let tenant = TenantKey::new("tenant-alpha").expect("tenant key");
-    seed(&mut kernel, "statement-voiding");
     seed(&mut kernel, "statement-target-a");
     seed(&mut kernel, "statement-target-b");
+    let candidate = voiding_candidate("statement-voiding", "statement-target-a");
+    kernel
+        .ingest(candidate.clone())
+        .expect("voiding Statement accepted");
+    kernel.ingest(candidate).expect("exact replay accepted");
 
     kernel
-        .record_voiding(&tenant, "statement-voiding", "statement-target-a")
+        .record_voiding_statement(&tenant, "statement-voiding")
         .expect("first voiding relation accepted");
     kernel
-        .record_voiding(&tenant, "statement-voiding", "statement-target-a")
+        .record_voiding_statement(&tenant, "statement-voiding")
         .expect("same voiding relation is idempotent");
 
     let error = kernel
-        .record_voiding(&tenant, "statement-voiding", "statement-target-b")
-        .expect_err("immutable voiding Statement cannot change target");
+        .ingest(voiding_candidate("statement-voiding", "statement-target-b"))
+        .expect_err("immutable Statement semantics cannot change target");
 
-    assert!(matches!(
-        &error,
-        IngestionError::VoidingTargetConflict { .. }
-    ));
-    assert_eq!(
-        error.to_string(),
-        "voiding target conflict for statement-voiding: existing target statement-target-a, attempted target statement-target-b"
-    );
+    assert!(matches!(error, IngestionError::StatementConflict { .. }));
     let relations = kernel.voiding_relations();
     assert_eq!(relations.len(), 1);
     assert_eq!(relations[0].voiding_statement_key(), "statement-voiding");
@@ -94,16 +92,20 @@ fn one_voiding_statement_cannot_acquire_multiple_targets() {
 fn a_voiding_statement_cannot_become_another_voiding_target() {
     let mut kernel = StatementKernel::default();
     let tenant = TenantKey::new("tenant-alpha").expect("tenant key");
-    seed(&mut kernel, "statement-voiding-a");
     seed(&mut kernel, "statement-target-b");
-    seed(&mut kernel, "statement-voiding-c");
+    kernel
+        .ingest(voiding_candidate("statement-voiding-a", "statement-target-b"))
+        .expect("first voiding Statement accepted");
+    kernel
+        .ingest(voiding_candidate("statement-voiding-c", "statement-voiding-a"))
+        .expect("second voiding Statement accepted before relation evaluation");
 
     kernel
-        .record_voiding(&tenant, "statement-voiding-a", "statement-target-b")
+        .record_voiding_statement(&tenant, "statement-voiding-a")
         .expect("first voiding relation accepted");
 
     let error = kernel
-        .record_voiding(&tenant, "statement-voiding-c", "statement-voiding-a")
+        .record_voiding_statement(&tenant, "statement-voiding-c")
         .expect_err("a voiding Statement cannot itself be voided");
 
     assert!(matches!(
@@ -111,6 +113,26 @@ fn a_voiding_statement_cannot_become_another_voiding_target() {
         IngestionError::InvalidVoidingRelation { .. }
     ));
     assert_eq!(kernel.voiding_relations().len(), 1);
+}
+
+#[test]
+fn blank_voiding_target_is_rejected_by_the_validated_boundary() {
+    let error = StatementCandidate::new_voiding(
+        TenantKey::new("tenant-alpha").expect("tenant key"),
+        "statement-voiding",
+        XapiVersion::V2_0,
+        br#"{"id":"statement-voiding"}"#.to_vec(),
+        b"comparison:voiding".to_vec(),
+        "\t",
+    )
+    .expect_err("blank StatementRef target rejected");
+
+    assert_eq!(
+        error,
+        IngestionError::InvalidIdentity {
+            field: "voided_statement_key",
+        }
+    );
 }
 
 #[test]
