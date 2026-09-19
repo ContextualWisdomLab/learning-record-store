@@ -1,6 +1,8 @@
 //! Contract tests for parsing the xAPI request-version header.
 
-use learning_record_store::{ReceivedXapiVersion, XapiVersion};
+use learning_record_store::{
+    ReceivedXapiVersion, StatementKernel, TenantKey, XapiVersion,
+};
 
 #[test]
 fn accepted_headers_preserve_wire_value_and_select_one_surface() {
@@ -118,4 +120,35 @@ fn http_header_extraction_requires_one_utf8_value() {
             .to_string(),
         "unsupported xAPI request version: \"2.0.1\""
     );
+}
+
+#[test]
+fn receipt_preserves_exact_request_version_label() {
+    let mut kernel = StatementKernel::default();
+    let tenant_key = TenantKey::new("tenant-version-evidence").expect("valid tenant key");
+
+    for (received_label, protocol_surface) in [
+        ("2.0", XapiVersion::V2_0),
+        ("2.0.0", XapiVersion::V2_0),
+        ("1.0", XapiVersion::V1_0_3),
+        ("1.0.12", XapiVersion::V1_0_3),
+    ] {
+        let received_version =
+            ReceivedXapiVersion::parse(received_label).expect("supported request version");
+        let receipt_number = kernel
+            .begin_received_request(
+                tenant_key.clone(),
+                &received_version,
+                format!("request:{received_label}").into_bytes(),
+            )
+            .expect("immutable request receipt");
+        let receipt = kernel
+            .receipts()
+            .last()
+            .expect("receipt must be retained");
+
+        assert_eq!(receipt.receipt_number(), receipt_number);
+        assert_eq!(receipt.received_xapi_label(), received_label);
+        assert_eq!(receipt.received_xapi_version(), protocol_surface);
+    }
 }
