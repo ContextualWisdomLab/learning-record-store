@@ -41,6 +41,26 @@ pub struct ReceivedXapiVersion {
 }
 
 impl ReceivedXapiVersion {
+    /// Extracts exactly one UTF-8 HTTP header value and parses its xAPI version.
+    ///
+    /// Missing, repeated, non-UTF-8, malformed, and unsupported values fail closed.
+    pub fn from_header_values(
+        received_values: &[&[u8]],
+    ) -> Result<Self, XapiVersionHeaderError> {
+        let received_value = match received_values {
+            [] => return Err(XapiVersionHeaderError::Missing),
+            [received_value] => received_value,
+            values => {
+                return Err(XapiVersionHeaderError::Multiple {
+                    value_count: values.len(),
+                })
+            }
+        };
+        let received_label = std::str::from_utf8(received_value)
+            .map_err(|_| XapiVersionHeaderError::InvalidEncoding)?;
+        Self::parse(received_label).map_err(XapiVersionHeaderError::Unsupported)
+    }
+
     /// Parses one complete request-header value without trimming or selecting among values.
     ///
     /// xAPI 2.0 accepts `2.0` and `2.0.0`. The explicit xAPI 1.0.3 compatibility
@@ -88,6 +108,48 @@ impl ReceivedXapiVersion {
     #[must_use]
     pub const fn statement_comparison_version(&self) -> &'static str {
         comparison_version(self.protocol_surface)
+    }
+}
+
+/// Failure to extract one supported `X-Experience-API-Version` HTTP header value.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum XapiVersionHeaderError {
+    /// The request did not contain the required version header.
+    Missing,
+    /// The request contained more than one version header value.
+    Multiple {
+        /// Number of received header values.
+        value_count: usize,
+    },
+    /// The sole header value was not valid UTF-8.
+    InvalidEncoding,
+    /// The sole UTF-8 value was malformed or unsupported.
+    Unsupported(UnsupportedXapiVersion),
+}
+
+impl Display for XapiVersionHeaderError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Missing => write!(formatter, "missing X-Experience-API-Version header"),
+            Self::Multiple { value_count } => write!(
+                formatter,
+                "multiple X-Experience-API-Version header values: {value_count}"
+            ),
+            Self::InvalidEncoding => write!(
+                formatter,
+                "non-UTF-8 X-Experience-API-Version header value"
+            ),
+            Self::Unsupported(error) => Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl Error for XapiVersionHeaderError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Unsupported(error) => Some(error),
+            Self::Missing | Self::Multiple { .. } | Self::InvalidEncoding => None,
+        }
     }
 }
 
