@@ -366,6 +366,7 @@ pub struct IngestionReceipt {
     tenant_key: TenantKey,
     raw_request_bytes: Vec<u8>,
     request_content_hash: [u8; 32],
+    received_xapi_label: String,
     received_xapi_version: XapiVersion,
 }
 
@@ -394,7 +395,13 @@ impl IngestionReceipt {
         &self.request_content_hash
     }
 
-    /// Returns the protocol version received for the request occurrence.
+    /// Returns the exact validated `X-Experience-API-Version` request value.
+    #[must_use]
+    pub fn received_xapi_label(&self) -> &str {
+        &self.received_xapi_label
+    }
+
+    /// Returns the normalized protocol surface for the request occurrence.
     #[must_use]
     pub const fn received_xapi_version(&self) -> XapiVersion {
         self.received_xapi_version
@@ -652,6 +659,36 @@ impl StatementKernel {
         received_xapi_version: XapiVersion,
         raw_request_bytes: Vec<u8>,
     ) -> Result<u64, IngestionError> {
+        self.begin_request_with_label(
+            tenant_key,
+            received_xapi_version,
+            received_xapi_version.as_str().to_owned(),
+            raw_request_bytes,
+        )
+    }
+
+    /// Creates one receipt from a validated request version without losing its wire label.
+    pub fn begin_received_request(
+        &mut self,
+        tenant_key: TenantKey,
+        received_version: &ReceivedXapiVersion,
+        raw_request_bytes: Vec<u8>,
+    ) -> Result<u64, IngestionError> {
+        self.begin_request_with_label(
+            tenant_key,
+            received_version.protocol_surface(),
+            received_version.received_label().to_owned(),
+            raw_request_bytes,
+        )
+    }
+
+    fn begin_request_with_label(
+        &mut self,
+        tenant_key: TenantKey,
+        received_xapi_version: XapiVersion,
+        received_xapi_label: String,
+        raw_request_bytes: Vec<u8>,
+    ) -> Result<u64, IngestionError> {
         if raw_request_bytes.is_empty() {
             return Err(IngestionError::InvalidEvidence {
                 field: "raw_request_bytes",
@@ -665,6 +702,7 @@ impl StatementKernel {
             tenant_key,
             raw_request_bytes,
             request_content_hash,
+            received_xapi_label,
             received_xapi_version,
         });
         Ok(receipt_number)
