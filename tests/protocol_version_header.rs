@@ -56,6 +56,7 @@ fn unsupported_or_ambiguous_headers_fail_closed_without_normalization() {
         "1",
         "1.0.",
         "1.0.03",
+        "1.0.1a",
         "1.0.-1",
         "1.1.0",
         "0.9",

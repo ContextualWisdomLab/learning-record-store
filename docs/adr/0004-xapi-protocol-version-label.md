@@ -30,9 +30,9 @@ The persistence boundary must therefore preserve two different facts: the exact 
 
 ## Decision
 
-`statement_comparison_version_for_xapi` maps both `2.0` and `2.0.0` to `xapi-2.0-statement-comparison/v1`. It maps `1.0` and syntactically valid `1.0.x` request labels to the existing `xapi-1.0.3-statement-comparison/v1` compatibility implementation. `canonical_xapi_version_label` maps xAPI 2.0 inputs to `2.0.0` and accepted xAPI 1.0 inputs to the stable data-model label `1.0.0`. The item and batch writers store the exact validated input in `ingestion_receipt.received_xapi_version`, store the normalized label in `statement_record.received_xapi_version`, and compare replays against that normalized label.
+`ReceivedXapiVersion::parse` is the Rust anti-corruption boundary for one complete request-version value. It retains the exact accepted value and selects the normalized `XapiVersion`, canonical Statement label, and comparison implementation without trimming or selecting among combined values. `statement_comparison_version_for_xapi` maps both `2.0` and `2.0.0` to `xapi-2.0-statement-comparison/v1`. It maps `1.0` and syntactically valid `1.0.x` request labels to the existing `xapi-1.0.3-statement-comparison/v1` compatibility implementation. `canonical_xapi_version_label` maps xAPI 2.0 inputs to `2.0.0` and accepted xAPI 1.0 inputs to the stable data-model label `1.0.0`. The item and batch writers store the exact validated input in `ingestion_receipt.received_xapi_version`, store the normalized label in `statement_record.received_xapi_version`, and compare replays against that normalized label. The future HTTP/repository adapter must pass these two facts through without parsing the label again.
 
-The Rust kernel represents normalized Statement protocol surfaces: `XapiVersion::V2_0.as_str()` returns `2.0.0`, and `XapiVersion::V1_0_3.as_str()` returns the stable xAPI 1.0 data-model label `1.0.0`. The `V1_0_3` variant and `xapi-1.0.3-statement-comparison/v1` identifier continue to name the compatibility and comparison implementation; they are not persisted Statement labels. The future HTTP/repository adapter must retain the exact validated request header separately when creating the durable receipt.
+The Rust kernel represents normalized Statement protocol surfaces: `XapiVersion::V2_0.as_str()` returns `2.0.0`, and `XapiVersion::V1_0_3.as_str()` returns the stable xAPI 1.0 data-model label `1.0.0`. The `V1_0_3` variant and `xapi-1.0.3-statement-comparison/v1` identifier continue to name the compatibility and comparison implementation; they are not persisted Statement labels. `ReceivedXapiVersion` keeps the exact request value adjacent to that normalized selection until the repository adapter creates the durable receipt.
 
 ## Evidence
 
@@ -44,23 +44,24 @@ The Rust kernel represents normalized Statement protocol surfaces: `XapiVersion:
 - Implementation run 34702333379: item and batch fixtures accepted `1.0`/valid `1.0.x`, retained exact receipt labels, canonicalized Statements to `1.0.0`, proved alias replay, and rejected a malformed leading-zero patch.
 - Test-only RED run 34703770760: the Rust public label still returned `1.0.3` while PostgreSQL and this decision required canonical Statement label `1.0.0`; seven kernel tests passed and the label contract failed with the exact mismatch.
 - Implementation run 34703937618: all six PostgreSQL suites and 35 Rust tests passed after aligning the Rust canonical label, with formatting, Clippy, warning-free rustdoc, and zero uncovered owned source lines.
+- Test-only predecessor `ab06c2620346265470093c1f34777d8b14ba7ef3` adds the public lossless request-version contract before `ReceivedXapiVersion` exists. Its hosted run 35432045410 remained queued, so it is retained as compile-negative source evidence rather than reported as an executed RED result.
 - Final review-contract head remains subject to exact-head GREEN and qualifying review before this Proposed decision can advance.
 
 ## Effects and risks
 
 A request received as `2.0` remains auditable as `2.0` on its receipt. Its canonical Statement uses `2.0.0`, and an otherwise equivalent retry received as `2.0.0` resolves as replayed rather than conflicting. Likewise, exact `1.0` or `1.0.x` input remains on its receipt while its canonical Statement uses `1.0.0`; equivalent valid patch labels replay on the reviewed xAPI 1.0.3 comparison implementation. Unknown labels, malformed leading-zero patches, and xAPI/comparison-version mismatches remain fail closed.
 
-The SQL functions trust an upstream adapter to supply a validated header value. Header presence, multi-value syntax, whitespace rules, response header selection, version negotiation outside these bounded mappings, JSON validation, full Statement comparison, cmi5 behavior, and protocol error mapping remain unimplemented. Treating this slice as full xAPI conformance would be false assurance.
+The SQL functions trust an upstream adapter to supply a validated header value. The Rust value object now rejects whitespace-altered, combined, malformed, or unsupported values, but HTTP header presence/cardinality extraction, response header selection, version negotiation outside these bounded mappings, JSON validation, full Statement comparison, cmi5 behavior, and protocol error mapping remain unimplemented. Treating this slice as full xAPI conformance would be false assurance.
 
 ## Operational and failure scenes
 
 - A client sends `X-Experience-API-Version: 2.0`: the receipt stores `2.0`, while the canonical Statement stores and compares as `2.0.0`.
 - The client retries equivalent evidence with `2.0.0`: the writer records a new `2.0.0` receipt and returns `replayed` without rewriting the canonical Statement.
 - A compatibility client sends `1.0` and retries equivalent evidence with `1.0.12`: each receipt keeps its exact label, the canonical Statement remains `1.0.0`, and the retry returns `replayed`.
-- A client sends malformed `1.0.03`: the writer rejects it before receipt or canonical mutation.
+- A client sends malformed `1.0.03`, whitespace-padded `2.0`, or a combined `2.0, 1.0.3` value: the Rust boundary rejects it without normalizing or selecting a value, before receipt or canonical mutation.
 - A client sends an unknown version or a 1.0.3 label with the 2.0 comparison identifier: the writer rejects the pair before receipt or canonical mutation.
 - An operator rolls back an empty pre-release schema: the rollback removes the normalization helper before ordered migration reapplication; retained evidence still blocks rollback atomically.
 
 ## Follow-up
 
-Implement lossless version-specific HTTP parsing, response-version negotiation, parser-to-`StatementCandidate` adaptation, xAPI 2.0 and xAPI 1.0.3 comparison rules, and independent xAPI/cmi5 conformance suites. Keep PR #6 Draft and this ADR Proposed until exact-head CI, qualifying review, ordinary protected-branch integration, and the remaining gates support a status change.
+Implement HTTP header presence/cardinality extraction, response-version negotiation, parser-to-`StatementCandidate` adaptation, xAPI 2.0 and xAPI 1.0.3 comparison rules, and independent xAPI/cmi5 conformance suites. Keep PR #6 Draft and this ADR Proposed until exact-head CI, qualifying review, ordinary protected-branch integration, and the remaining gates support a status change.

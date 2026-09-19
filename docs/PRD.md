@@ -1,7 +1,7 @@
 # Product requirements: immutable xAPI evidence kernel
 
 Status: Active implementation slice
-Last reconciled: 2026-09-01
+Last reconciled: 2026-09-19
 
 ## Product responsibility
 
@@ -25,7 +25,7 @@ A learning platform cannot make reliable downstream progression, audit, or compl
 
 ## Commercial acceptance for this slice
 
-The slice is reviewable when executable Rust tests prove first acceptance, exact-retry reuse, conflict rejection, source-byte retention for accepted/replayed/rejected request occurrences, protocol-version separation, tenant-scoped identity, and non-destructive voiding. The persistence schema must use descriptive multiword `snake_case` objects, preserve a single canonical `(tenant_key, statement_key)` identity, use composite tenant foreign keys, and fail closed through PostgreSQL row-level security when tenant context is absent or mismatched.
+The slice is reviewable when executable Rust tests prove first acceptance, exact-retry reuse, conflict rejection, source-byte retention for accepted/replayed/rejected request occurrences, protocol-version separation, tenant-scoped identity, and non-destructive voiding. The protocol prerequisite must parse one complete request-version value without trimming or selecting among combined values, preserve the exact validated label for receipt provenance, and select only the reviewed canonical Statement/comparison surface. The persistence schema must use descriptive multiword `snake_case` objects, preserve a single canonical `(tenant_key, statement_key)` identity, use composite tenant foreign keys, and fail closed through PostgreSQL row-level security when tenant context is absent or mismatched.
 
 The branch now contains a real PostgreSQL item-level transaction primitive and tests that race identical and conflicting submissions using an application-equivalent non-superuser role. Commercial acceptance of that evidence still depends on successful exact-head GitHub execution. The product remains non-production-ready until a Rust repository/network adapter uses the committed outcome correctly, POST-array requests share one immutable receipt across their item occurrences, migration rollback/reapply and backup/restore are proven, crash/retry recovery is exercised, and version-specific xAPI conformance fixtures pass. Public Rust surfaces must remain fully documented and touched production paths must reach the repository coverage target without warning suppression.
 

@@ -30,6 +30,102 @@ impl XapiVersion {
     }
 }
 
+/// One validated `X-Experience-API-Version` request value.
+///
+/// The exact wire value remains available for immutable receipt provenance, while
+/// [`XapiVersion`] identifies the normalized Statement and comparison surface.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReceivedXapiVersion {
+    received_label: String,
+    protocol_surface: XapiVersion,
+}
+
+impl ReceivedXapiVersion {
+    /// Parses one complete request-header value without trimming or selecting among values.
+    ///
+    /// xAPI 2.0 accepts `2.0` and `2.0.0`. The explicit xAPI 1.0.3 compatibility
+    /// surface accepts `1.0` and syntactically valid `1.0.x` values while rejecting
+    /// leading-zero patch aliases. Missing, combined, or unsupported values fail closed.
+    pub fn parse(received_label: &str) -> Result<Self, UnsupportedXapiVersion> {
+        let protocol_surface = if matches!(received_label, "2.0" | "2.0.0") {
+            XapiVersion::V2_0
+        } else if received_label == "1.0"
+            || received_label
+                .strip_prefix("1.0.")
+                .is_some_and(is_supported_1_0_patch)
+        {
+            XapiVersion::V1_0_3
+        } else {
+            return Err(UnsupportedXapiVersion {
+                received_label: received_label.to_owned(),
+            });
+        };
+        Ok(Self {
+            received_label: received_label.to_owned(),
+            protocol_surface,
+        })
+    }
+
+    /// Returns the exact validated request value for immutable receipt evidence.
+    #[must_use]
+    pub fn received_label(&self) -> &str {
+        &self.received_label
+    }
+
+    /// Returns the normalized protocol and Statement-comparison surface.
+    #[must_use]
+    pub const fn protocol_surface(&self) -> XapiVersion {
+        self.protocol_surface
+    }
+
+    /// Returns the stable Statement version label for this protocol surface.
+    #[must_use]
+    pub const fn canonical_statement_label(&self) -> &'static str {
+        self.protocol_surface.as_str()
+    }
+
+    /// Returns the versioned Statement-comparison implementation identifier.
+    #[must_use]
+    pub const fn statement_comparison_version(&self) -> &'static str {
+        comparison_version(self.protocol_surface)
+    }
+}
+
+/// An unsupported, malformed, missing, or ambiguous xAPI request-version value.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnsupportedXapiVersion {
+    received_label: String,
+}
+
+impl UnsupportedXapiVersion {
+    /// Returns the rejected value exactly as supplied at the parsing boundary.
+    #[must_use]
+    pub fn received_label(&self) -> &str {
+        &self.received_label
+    }
+}
+
+impl Display for UnsupportedXapiVersion {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "unsupported xAPI request version: {:?}",
+            self.received_label
+        )
+    }
+}
+
+impl Error for UnsupportedXapiVersion {}
+
+fn is_supported_1_0_patch(patch: &str) -> bool {
+    let mut bytes = patch.bytes();
+    match bytes.next() {
+        Some(b'0') => bytes.next().is_none(),
+        Some(b'1'..=b'9') => bytes.all(|byte| byte.is_ascii_digit()),
+        _ => false,
+    }
+}
+
 /// Validated tenant-scoped persistence key.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct TenantKey(String);
