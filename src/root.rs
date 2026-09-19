@@ -249,6 +249,50 @@ mod cardinality_tests {
     }
 
     #[test]
+    fn received_request_rejects_exhausted_durable_receipt_sequence() {
+        let mut kernel = StatementKernel {
+            inner: kernel_impl::StatementKernel::default(),
+            next_receipt_number: MAX_DURABLE_RECEIPT_NUMBER,
+        };
+        let received_version =
+            ReceivedXapiVersion::parse("2.0").expect("fixture version must be valid");
+
+        let error = kernel
+            .begin_received_request(tenant(), &received_version, br#"{}"#.to_vec())
+            .expect_err("PostgreSQL bigint receipt numbers must never overflow");
+
+        assert_eq!(
+            error,
+            IngestionError::InvalidEvidence {
+                field: "receipt_sequence"
+            }
+        );
+        assert!(kernel.receipts().is_empty());
+    }
+
+    #[test]
+    fn received_request_empty_evidence_precedes_sequence_exhaustion() {
+        let mut kernel = StatementKernel {
+            inner: kernel_impl::StatementKernel::default(),
+            next_receipt_number: MAX_DURABLE_RECEIPT_NUMBER,
+        };
+        let received_version =
+            ReceivedXapiVersion::parse("2.0").expect("fixture version must be valid");
+
+        let error = kernel
+            .begin_received_request(tenant(), &received_version, Vec::new())
+            .expect_err("empty evidence remains the first failure");
+
+        assert_eq!(
+            error,
+            IngestionError::InvalidEvidence {
+                field: "raw_request_bytes"
+            }
+        );
+        assert!(kernel.receipts().is_empty());
+    }
+
+    #[test]
     fn oversized_batch_cardinality_fails_closed() {
         let error = StatementKernel::ensure_batch_capacity(MAX_DURABLE_BATCH_STATEMENT_COUNT + 1)
             .expect_err("unpersistable occurrence indexes must fail closed");
