@@ -104,6 +104,19 @@ impl ReceivedXapiVersion {
         self.protocol_surface.as_str()
     }
 
+    /// Returns the version value an LRS emits for this response surface.
+    ///
+    /// This is deliberately distinct from the canonical Statement label: xAPI
+    /// 1.0.x responses identify the latest supported patch (`1.0.3`) while the
+    /// Statement data-model version remains `1.0.0`.
+    #[must_use]
+    pub const fn response_header_value(&self) -> &'static str {
+        match self.protocol_surface {
+            XapiVersion::V2_0 => "2.0.0",
+            XapiVersion::V1_0_3 => "1.0.3",
+        }
+    }
+
     /// Returns the versioned Statement-comparison implementation identifier.
     #[must_use]
     pub const fn statement_comparison_version(&self) -> &'static str {
