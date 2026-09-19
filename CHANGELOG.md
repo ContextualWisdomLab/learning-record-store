@@ -4,7 +4,7 @@
 
 ### Added
 
-- A documented Rust `ReceivedXapiVersion` value object that parses one complete `X-Experience-API-Version` value, preserves its exact wire label, selects the canonical Statement/comparison surface, and rejects whitespace, combined values, malformed patches, and unsupported versions without normalization.
+- A documented Rust `ReceivedXapiVersion` value object that extracts exactly one UTF-8 `X-Experience-API-Version` header value, preserves its exact wire label, selects the canonical Statement/comparison surface, and rejects missing, repeated, non-UTF-8, whitespace-altered, combined, malformed, and unsupported values without normalization.
 - Initial LRS authority and module boundaries.
 - Normalized xAPI persistence data-model baseline.
 - xAPI 2.0 and cmi5 compatibility reference baseline.

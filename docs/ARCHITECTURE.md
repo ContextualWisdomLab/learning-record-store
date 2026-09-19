@@ -17,7 +17,7 @@ The Learning Record Store is the authoritative persistence service for xAPI lear
 
 ## Initial modules
 
-- `xapi_protocol`: request and response contracts. `ReceivedXapiVersion` is the lossless request-version value object: it preserves one exact validated wire value while selecting a normalized Statement/comparison surface; it does not own HTTP extraction or response negotiation.
+- `xapi_protocol`: request and response contracts. `ReceivedXapiVersion` extracts exactly one UTF-8 request-version header value, preserves it while selecting a normalized Statement/comparison surface, and fails closed on missing or repeated values; response negotiation remains separate.
 - `statement_validation`: version-aware validation and profile checks.
 - `compatibility_adapter`: explicit xAPI 1.0.3/cmi5 compatibility transformations and the associated `compatibility_transform` / `compatibility_artifact` provenance records. This module may derive compatibility views but never becomes canonical learning-evidence authority or overwrites the received source surface.
 - `ingestion_evidence`: immutable request receipts and per-Statement request-occurrence provenance, including idempotent retries, canonical conflicts, and request-level `batch_rejected` evidence.

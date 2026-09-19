@@ -144,16 +144,9 @@ impl Display for XapiVersionHeaderError {
     }
 }
 
-impl Error for XapiVersionHeaderError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            Self::Unsupported(error) => Some(error),
-            Self::Missing | Self::Multiple { .. } | Self::InvalidEncoding => None,
-        }
-    }
-}
+impl Error for XapiVersionHeaderError {}
 
-/// An unsupported, malformed, missing, or ambiguous xAPI request-version value.
+/// An unsupported or malformed xAPI request-version value.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnsupportedXapiVersion {
     received_label: String,
