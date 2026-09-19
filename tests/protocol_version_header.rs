@@ -74,3 +74,42 @@ fn unsupported_or_ambiguous_headers_fail_closed_without_normalization() {
         );
     }
 }
+
+#[test]
+fn http_header_extraction_requires_one_utf8_value() {
+    let accepted_values = [b"2.0".as_slice()];
+    let accepted = ReceivedXapiVersion::from_header_values(&accepted_values)
+        .expect("one supported HTTP header value");
+    assert_eq!(accepted.received_label(), "2.0");
+
+    assert_eq!(
+        ReceivedXapiVersion::from_header_values(&[])
+            .expect_err("missing version header must fail closed")
+            .to_string(),
+        "missing X-Experience-API-Version header"
+    );
+
+    let duplicate_values = [b"2.0".as_slice(), b"2.0.0".as_slice()];
+    assert_eq!(
+        ReceivedXapiVersion::from_header_values(&duplicate_values)
+            .expect_err("multiple version headers must fail closed")
+            .to_string(),
+        "multiple X-Experience-API-Version header values: 2"
+    );
+
+    let invalid_utf8 = [&[0xff][..]];
+    assert_eq!(
+        ReceivedXapiVersion::from_header_values(&invalid_utf8)
+            .expect_err("non-UTF-8 version header must fail closed")
+            .to_string(),
+        "non-UTF-8 X-Experience-API-Version header value"
+    );
+
+    let unsupported_value = [b"2.0.1".as_slice()];
+    assert_eq!(
+        ReceivedXapiVersion::from_header_values(&unsupported_value)
+            .expect_err("unsupported version header must fail closed")
+            .to_string(),
+        "unsupported xAPI request version: \"2.0.1\""
+    );
+}
