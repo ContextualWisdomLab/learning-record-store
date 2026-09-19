@@ -4,14 +4,55 @@
 
 ### Added
 
+- A documented Rust `ReceivedXapiVersion` value object that extracts exactly one UTF-8 `X-Experience-API-Version` header value, preserves its exact wire label through in-memory receipt creation, selects the canonical Statement/comparison surface and surface-specific response value, and rejects missing, repeated, non-UTF-8, whitespace-altered, combined, malformed, and unsupported values without normalization.
 - Initial LRS authority and module boundaries.
 - Normalized xAPI persistence data-model baseline.
 - xAPI 2.0 and cmi5 compatibility reference baseline.
 - Standards traceability ledger that separates canonical xAPI 2.0 evidence from xAPI 1.0.3/cmi5 compatibility evidence.
 - Repository development rules.
+- Rust `StatementKernel` implementing tenant-scoped canonical identity, immutable request receipts, version-aware replay/conflict decisions, non-destructive voiding, and atomic batch-rejection evidence.
+- Regression and edge-case tests for first ingest, equivalent replay, conflict rejection, version mismatch, tenant isolation, exact raw evidence retention, invalid evidence, voiding failures, duplicate-batch precedence, context mismatch, every-item rejected-batch provenance, multiple stored conflicts in one rejected batch, and PostgreSQL whitespace-only identity/version rejection.
+- PostgreSQL statement-evidence migration with composite tenant keys, 3NF relations, exact `bytea` evidence, forced tenant row-level security, and database-enforced SHA-256 consistency between immutable evidence bytes and their stored digests.
+- `persist_statement_occurrence`, the controlled item-level PostgreSQL transaction primitive that retains request/occurrence evidence while resolving accepted, replayed, and conflicting Statement identities atomically.
+- Real PostgreSQL race fixtures for identical first writers and competing content, requiring a single canonical row and preserved accepted/replayed or accepted/conflict occurrence evidence.
+- Authenticated database-principal tenant binding through `tenant_database_principal`, `authorized_tenant_key()`, constrained `lrs_evidence_writer`, and negative tests proving a caller-selected tenant GUC cannot retarget authorization or bypass immutable-evidence controls.
+- Explicit durable `batch_rejected` outcome and PostgreSQL constraint tests for rejected POST-array item evidence, including successful-outcome fixtures that require a non-null canonical Statement link.
+- `persist_statement_batch`, a controlled PostgreSQL primitive for one-receipt/many-item validated POST-array persistence with deterministic per-Statement identity serialization, atomic canonical mutation, and durable `conflict`/`batch_rejected` occurrence evidence.
+- Real PostgreSQL shared-receipt batch transaction fixtures covering two-item acceptance, replay, conflict rejection without sibling leakage, canonical non-overwrite, and duplicate-identity fail-closed behavior.
+- Durable duplicate-batch rejection that preserves one immutable receipt and every submitted index as unresolved `batch_rejected` evidence without creating a canonical Statement.
+- ADR 0002 documenting the authenticated database-principal authorization boundary and its PostgreSQL/OWASP rationale.
+- Proposed ADR 0003 documenting per-Statement transaction serialization for atomic durable batches and explicitly rejecting tenant-wide/table-wide locks.
+- Product and technical requirements for the first executable commercialization slice.
+- Exact-head Rust formatting, test, Clippy, rustdoc, 100% line-coverage, PostgreSQL invariant, transactional race, database-principal, batch-outcome, and shared-receipt batch gates, including pull requests stacked on non-default branches.
+- A workflow regression contract that prevents stacked pull requests from silently losing exact-head quality checks.
+- Review-contract hardening that verifies the rollback SQLSTATE, scopes required relation names to the actual `LOCK TABLE` clause, and proves malformed xAPI 1.0 item/batch rejection creates no receipt, occurrence, or canonical Statement for every submitted item.
+- Self-contained PostgreSQL fixtures that reset test schema/roles and apply their own migration stage, with reverse-order CI proving no suite inherits hidden predecessor state.
+- Rust pinned to the exact 1.98.1 toolchain proven by hosted CI while retaining the zero-uncovered-unique-source-line coverage gate.
+- Rust and concurrent PostgreSQL regression cases preventing a voiding Statement from becoming another voiding Statement's target.
+- Item and batch PostgreSQL regression cases rejecting incompatible received-xAPI/comparison-algorithm version pairs before durable mutation.
+- Empty pre-release schema rollback/reapply evidence plus a nonempty fail-closed guard that preserves retained learning records and tenant bindings.
+- A pre-rollback table-lock barrier and concurrent-writer fixture preventing evidence committed during rollback from being dropped after a stale emptiness check.
+- Content-bound voiding semantics that retain a validator-classified StatementRef target with the immutable Statement and derive each relation from that stored meaning instead of accepting a caller-selected target.
+- Product-first README, Apache-2.0 repository license, public documentation landing source, and clarified document-resource revision/idempotency semantics carried forward from the foundation branch without rewriting stack history.
 
 ### Changed
 
+- Aligned the Rust xAPI 1.0.3 compatibility surface with the durable Statement contract: `XapiVersion::V1_0_3.as_str()` now emits stable data-model label `1.0.0`, while the separately named comparison implementation remains `xapi-1.0.3-statement-comparison/v1`.
+- Corrected xAPI 1.0 compatibility-version handling: `1.0` and valid `1.0.x` request labels use the reviewed xAPI 1.0.3 comparison implementation, receipts retain the exact received label, and canonical Statements store the stable `1.0.0` data-model label.
+- Corrected xAPI 2.0 request-version handling: both IEEE-defined `2.0` and `2.0.0` inputs use the `2.0.0` comparison surface, while each receipt retains its exact received header and canonical Statements store `2.0.0`.
+
 - Hardened exact-head bootstrap validation, statement identity, attachment digests, and compatibility-artifact provenance so conflicting evidence fails closed and transformed outputs remain auditable without becoming canonical learning evidence.
 - Replaced raw request-body replay equality with version-aware xAPI Statement comparison while retaining immutable request receipts and per-Statement provenance for single and batch ingestion.
-- Separated canonical Statement identity from per-request ingestion occurrences so idempotent retries retain every immutable receipt, and replaced phrase-only bootstrap checks with an exact machine-readable contract.
+- Separated canonical Statement identity from per-request ingestion occurrences so idempotent retries retain every immutable receipt, and replaced phrase-only bootstrap checks with an exact machine-readable contract whose comparison preserves JSON type distinctions.
+- Aligned persistence identity terminology on `tenant_key` / `statement_key` and raw 32-octet SHA-256 digests so code, migrations, DATA_MODEL, PRD, TRD, architecture, and CI describe one contract.
+- Kept canonical replay resolution read-only: PostgreSQL unique-index conflict serialization protects the minimum Statement identity while immutable rows do not require UPDATE privileges or an extra row lock.
+- Replaced the bootstrap `SECURITY INVOKER` plus caller-selected `app.tenant_key` authorization model with principal-bound forced RLS and a constrained `SECURITY DEFINER` write boundary; ordinary tenant principals no longer require direct immutable-table mutation privileges.
+- Ordered POST-array preflight so tenant/version context and duplicate identities are resolved before canonical conflict comparison; the full batch is now scanned before rejection so every stored conflict index is classified as `Conflict` and only non-conflicting siblings become `BatchRejected`, without partial canonical acceptance.
+- Replaced PostgreSQL space-only `btrim` identity/version checks with whitespace-class validation at schema and controlled-writer boundaries so tabs/newlines cannot persist where the Rust kernel rejects blank identities; the regression suite now isolates statement-key and comparison-version failures so one constraint cannot mask the other.
+- Tightened PostgreSQL occurrence consistency so `accepted` and `replayed` rows cannot pass a CHECK constraint with a null canonical link under SQL three-valued logic, and privileged/manual inserts cannot store digests inconsistent with immutable request/comparison bytes.
+- Bound the public Rust kernel to PostgreSQL persistence widths: receipt issuance fails closed before signed `bigint` exhaustion, both batch and direct occurrence indexes stay within signed `integer`, and validated POST arrays must cross the kernel boundary as materialized vectors so complete preflight remains mandatory without generic iterator instantiations.
+- Unified controlled single-item and batch writes on the same transaction-scoped per-Statement advisory-lock protocol, acquired in deterministic order for batches, so an overlapping controlled writer cannot invalidate batch preflight without serializing unrelated tenant evidence.
+- Replaced undocumented `hashtext` advisory-lock inputs with one length-delimited SHA-256-derived signed `bigint` lock key shared by item and batch writers.
+- Split replacement CHECK-constraint installation from existing-row validation so migration 0003 does not retain an `ACCESS EXCLUSIVE` lock during its validation scan.
+- Added a shared protocol/comparison-version mapping at the controlled writer boundary and a lock-serialized voiding-role guard at the relational boundary.
+- Downgraded ADR 0002 from Accepted to Proposed while its authorization implementation remains only on the unmerged writer stack; acceptance now requires current exact-head evidence and ordinary protected-branch integration.
