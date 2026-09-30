@@ -2,7 +2,7 @@
 
 use learning_record_store::{
     IngestionStatus, ReceivedXapiVersion, StatementCandidate, StatementKernel, TenantKey,
-    XapiVersion,
+    XapiVersion, XAPI_VERSION_HEADER_NAME,
 };
 
 #[test]
@@ -121,6 +121,26 @@ fn http_header_extraction_requires_one_utf8_value() {
             .to_string(),
         "unsupported xAPI request version: \"2.0.1\""
     );
+}
+
+#[test]
+fn response_header_contract_uses_latest_supported_surface_value() {
+    assert_eq!(XAPI_VERSION_HEADER_NAME, "X-Experience-API-Version");
+
+    for (request_value, expected_response_value) in [
+        ("2.0", "2.0.0"),
+        ("2.0.0", "2.0.0"),
+        ("1.0", "1.0.3"),
+        ("1.0.12", "1.0.3"),
+    ] {
+        let received_version =
+            ReceivedXapiVersion::parse(request_value).expect("supported request version");
+
+        assert_eq!(
+            received_version.response_header(),
+            ("X-Experience-API-Version", expected_response_value)
+        );
+    }
 }
 
 #[test]

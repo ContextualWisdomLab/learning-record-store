@@ -4,6 +4,8 @@
 
 ### Added
 
+- A typed `X-Experience-API-Version` response-header contract that returns the latest supported
+  value for the selected xAPI surface without reflecting an arbitrary accepted request label.
 - A documented Rust `ReceivedXapiVersion` value object that extracts exactly one UTF-8 `X-Experience-API-Version` header value, preserves its exact wire label through in-memory receipt creation, selects the canonical Statement/comparison surface and surface-specific response value, and rejects missing, repeated, non-UTF-8, whitespace-altered, combined, malformed, and unsupported values without normalization.
 - `StatementKernel::ingest_received_batch`, which preserves a validated POST array's exact request-version wire label on its shared immutable receipt while applying comparison and Statement semantics on the normalized protocol surface.
 - Initial LRS authority and module boundaries.

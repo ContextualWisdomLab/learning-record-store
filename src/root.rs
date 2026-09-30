@@ -10,7 +10,7 @@ mod kernel_impl;
 pub use kernel_impl::{
     IngestionError, IngestionOutcome, IngestionReceipt, IngestionStatus, ReceivedXapiVersion,
     StatementCandidate, StatementOccurrence, StoredStatement, TenantKey, UnsupportedXapiVersion,
-    VoidingRelation, XapiVersion, XapiVersionHeaderError,
+    VoidingRelation, XapiVersion, XapiVersionHeaderError, XAPI_VERSION_HEADER_NAME,
 };
 
 const MAX_DURABLE_BATCH_STATEMENT_COUNT: usize = i32::MAX as usize + 1;

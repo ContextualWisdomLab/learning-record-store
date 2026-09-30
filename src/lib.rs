@@ -10,6 +10,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
+/// HTTP field name for request version metadata and the response metadata contract.
+pub const XAPI_VERSION_HEADER_NAME: &str = "X-Experience-API-Version";
+
 /// Canonical protocol surfaces accepted by the ingestion kernel.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum XapiVersion {
@@ -113,6 +116,12 @@ impl ReceivedXapiVersion {
             XapiVersion::V2_0 => "2.0.0",
             XapiVersion::V1_0_3 => "1.0.3",
         }
+    }
+
+    /// Returns the response header name and latest supported value for this surface.
+    #[must_use]
+    pub const fn response_header(&self) -> (&'static str, &'static str) {
+        (XAPI_VERSION_HEADER_NAME, self.response_header_value())
     }
 
     /// Returns the versioned Statement-comparison implementation identifier.
