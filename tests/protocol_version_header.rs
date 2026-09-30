@@ -1,6 +1,9 @@
 //! Contract tests for parsing the xAPI request-version header.
 
-use learning_record_store::{ReceivedXapiVersion, StatementKernel, TenantKey, XapiVersion};
+use learning_record_store::{
+    IngestionStatus, ReceivedXapiVersion, StatementCandidate, StatementKernel, TenantKey,
+    XapiVersion,
+};
 
 #[test]
 fn accepted_headers_preserve_wire_value_and_select_one_surface() {
@@ -146,4 +149,83 @@ fn receipt_preserves_exact_request_version_label() {
         assert_eq!(receipt.received_xapi_label(), received_label);
         assert_eq!(receipt.received_xapi_version(), protocol_surface);
     }
+}
+
+#[test]
+fn batch_receipt_preserves_exact_request_version_label() {
+    let mut kernel = StatementKernel::default();
+    let tenant_key = TenantKey::new("tenant-batch-version-evidence").expect("valid tenant key");
+    let received_version = ReceivedXapiVersion::parse("1.0.12").expect("supported request version");
+    let raw_request = br#"[{"id":"statement-a"},{"id":"statement-b"}]"#.to_vec();
+    let candidates = ["statement-a", "statement-b"].map(|statement_key| {
+        StatementCandidate::new(
+            tenant_key.clone(),
+            statement_key,
+            XapiVersion::V1_0_3,
+            format!(r#"{{"id":"{statement_key}"}}"#).into_bytes(),
+            format!("comparison:{statement_key}").into_bytes(),
+        )
+        .expect("valid statement candidate")
+    });
+
+    let outcomes = kernel
+        .ingest_received_batch(
+            tenant_key,
+            &received_version,
+            raw_request.clone(),
+            candidates.into(),
+        )
+        .expect("validated batch accepted atomically");
+
+    assert_eq!(outcomes.len(), 2);
+    assert!(outcomes
+        .iter()
+        .all(|outcome| outcome.status() == IngestionStatus::Accepted));
+    assert_eq!(outcomes[0].receipt_number(), outcomes[1].receipt_number());
+    assert_eq!(kernel.receipts().len(), 1);
+    assert_eq!(kernel.receipts()[0].raw_request_bytes(), raw_request);
+    assert_eq!(kernel.receipts()[0].received_xapi_label(), "1.0.12");
+    assert_eq!(
+        kernel.receipts()[0].received_xapi_version(),
+        XapiVersion::V1_0_3
+    );
+}
+
+#[test]
+fn received_batch_rejects_empty_collection_before_receipt_creation() {
+    let mut kernel = StatementKernel::default();
+    let tenant_key = TenantKey::new("tenant-empty-batch").expect("valid tenant key");
+    let received_version = ReceivedXapiVersion::parse("2.0").expect("supported request version");
+
+    let error = kernel
+        .ingest_received_batch(tenant_key, &received_version, b"[]".to_vec(), Vec::new())
+        .expect_err("empty batch must fail closed");
+
+    assert_eq!(error.to_string(), "invalid evidence: statement_batch");
+    assert!(kernel.receipts().is_empty());
+    assert!(kernel.occurrences().is_empty());
+}
+
+#[test]
+fn received_batch_rejects_empty_request_evidence_before_state_change() {
+    let mut kernel = StatementKernel::default();
+    let tenant_key = TenantKey::new("tenant-empty-request").expect("valid tenant key");
+    let received_version = ReceivedXapiVersion::parse("2.0").expect("supported request version");
+    let candidate = StatementCandidate::new(
+        tenant_key.clone(),
+        "statement-empty-request",
+        XapiVersion::V2_0,
+        br#"{"id":"statement-empty-request"}"#.to_vec(),
+        b"comparison:statement-empty-request".to_vec(),
+    )
+    .expect("valid statement candidate");
+
+    let error = kernel
+        .ingest_received_batch(tenant_key, &received_version, Vec::new(), vec![candidate])
+        .expect_err("empty request evidence must fail closed");
+
+    assert_eq!(error.to_string(), "invalid evidence: raw_request_bytes");
+    assert!(kernel.receipts().is_empty());
+    assert!(kernel.occurrences().is_empty());
+    assert_eq!(kernel.statement_count(), 0);
 }

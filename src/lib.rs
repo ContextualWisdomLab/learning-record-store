@@ -739,13 +739,55 @@ impl StatementKernel {
         raw_request_bytes: Vec<u8>,
         candidates: Vec<StatementCandidate>,
     ) -> Result<Vec<IngestionOutcome>, IngestionError> {
+        self.ingest_batch_with_label(
+            tenant_key,
+            received_xapi_version,
+            received_xapi_version.as_str().to_owned(),
+            raw_request_bytes,
+            candidates,
+        )
+    }
+
+    /// Applies a validated POST array while retaining the exact request-version wire label.
+    ///
+    /// Protocol adapters should prefer this boundary after parsing the required
+    /// `X-Experience-API-Version` header. The normalized protocol surface still governs
+    /// Statement comparison, while the exact validated label remains immutable receipt evidence.
+    pub fn ingest_received_batch(
+        &mut self,
+        tenant_key: TenantKey,
+        received_version: &ReceivedXapiVersion,
+        raw_request_bytes: Vec<u8>,
+        candidates: Vec<StatementCandidate>,
+    ) -> Result<Vec<IngestionOutcome>, IngestionError> {
+        self.ingest_batch_with_label(
+            tenant_key,
+            received_version.protocol_surface(),
+            received_version.received_label().to_owned(),
+            raw_request_bytes,
+            candidates,
+        )
+    }
+
+    fn ingest_batch_with_label(
+        &mut self,
+        tenant_key: TenantKey,
+        received_xapi_version: XapiVersion,
+        received_xapi_label: String,
+        raw_request_bytes: Vec<u8>,
+        candidates: Vec<StatementCandidate>,
+    ) -> Result<Vec<IngestionOutcome>, IngestionError> {
         if candidates.is_empty() {
             return Err(IngestionError::InvalidEvidence {
                 field: "statement_batch",
             });
         }
-        let receipt_number =
-            self.begin_request(tenant_key.clone(), received_xapi_version, raw_request_bytes)?;
+        let receipt_number = self.begin_request_with_label(
+            tenant_key.clone(),
+            received_xapi_version,
+            received_xapi_label,
+            raw_request_bytes,
+        )?;
 
         if candidates.iter().any(|candidate| {
             candidate.tenant_key != tenant_key

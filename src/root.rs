@@ -126,6 +126,32 @@ impl StatementKernel {
         result
     }
 
+    /// Applies one validated POST array while retaining the exact request-version wire label.
+    ///
+    /// The candidate count and receipt sequence are checked before the internal kernel records
+    /// immutable request evidence.
+    pub fn ingest_received_batch(
+        &mut self,
+        tenant_key: TenantKey,
+        received_version: &ReceivedXapiVersion,
+        raw_request_bytes: Vec<u8>,
+        candidates: Vec<StatementCandidate>,
+    ) -> Result<Vec<IngestionOutcome>, IngestionError> {
+        Self::ensure_batch_capacity(candidates.len())?;
+        if !candidates.is_empty() {
+            self.ensure_receipt_capacity()?;
+        }
+
+        let result = self.inner.ingest_received_batch(
+            tenant_key,
+            received_version,
+            raw_request_bytes,
+            candidates,
+        );
+        self.sync_receipt_sequence();
+        result
+    }
+
     /// Applies one validated Statement item to an existing immutable request receipt.
     pub fn ingest_at_receipt(
         &mut self,
