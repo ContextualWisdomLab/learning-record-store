@@ -1,6 +1,6 @@
 # Product and technical gap baseline
 
-Last reconciled: 2026-09-19
+Last reconciled: 2026-09-30
 
 This ledger records commercialization state from live product guidance, architecture/data-model decisions, implementation, issue/PR evidence, standards traceability, and exact-head GitHub verification. Mutable check/review state is never frozen as a success claim in this file; merge decisions must re-fetch the current PR head and live gates.
 
@@ -32,7 +32,7 @@ The active implementation is stacked on bootstrap PR #1 in branch `agent/xapi-in
 | Document resources | planned current-state + immutable revision model | Defined only; ADR 0001 distinguishes state-changing revisions from idempotent same-state retries | CRUD, conditional requests, concurrency semantics absent | Separate document-resource implementation slice |
 | Attachments | planned content-addressed immutable storage | Defined only | No blob storage, malicious-content non-execution, integrity or authorization proof | Dedicated attachment implementation/tests |
 | Compatibility provenance | compatibility adapter/artifact boundary | Defined only | No transformation or reproducibility evidence | Implement only after canonical parser is proven |
-| CI quality | exact-head checkout, stacked-PR trigger, PostgreSQL service, Rust fmt/test/clippy/rustdoc, zero-uncovered-line gate, transaction-race/principal/batch/shared-receipt/recovery tests | Each database script resets test schema/roles and applies its own explicit migration stage; verified predecessor run 34703937618 passed every job step at `faccf1edd365d086c3d8482b79d6376f4ce01200`; review tests now require rollback SQLSTATE `55000`, inspect relation names only inside the actual lock clause, and check malformed-label receipt/occurrence/Statement non-mutation | Current PR head must always be re-fetched after documentation or review changes; stacked central review coverage remains unverified | Require a terminal current-head check and resolve only findings proven by that head |
+| CI quality | exact-head checkout, stacked-PR trigger, PostgreSQL service, Rust fmt/test/clippy/rustdoc, zero-uncovered-line gate, transaction-race/principal/batch/shared-receipt/recovery tests, tracked `Cargo.lock` | Each database script resets test schema/roles and applies its own explicit migration stage; lock-contract tests require the service lockfile to be tracked and every build gate to use `--locked`; the 2026-09-30 repair applies the pinned Rust 1.98.1 formatter after run 35442908022 stopped at formatting | Current PR head must always be re-fetched after documentation or review changes; a fresh hosted run must execute every post-format stage; stacked central review coverage remains unverified | Require a terminal current-head check and resolve only findings proven by that head |
 | Security/operability | forced principal-bound RLS, immutable evidence, constrained controlled writers, public function access revoked | Partial and Proposed while unmerged | No HTTP authn/z, backup/restore, compose deployment, telemetry, recovery or load evidence | Add service/deployment/recovery slice before release-readiness claim |
 
 ## DDD/context map

@@ -49,6 +49,7 @@ jobs:
               Path("AGENTS.md"),
               Path("CLAUDE.md"),
               Path("CHANGELOG.md"),
+              Path("Cargo.lock"),
               Path("Cargo.toml"),
               Path("rust-toolchain.toml"),
               Path("src/lib.rs"),
@@ -63,6 +64,7 @@ jobs:
               Path("tests/postgres_batch_transaction.sh"),
               Path("tests/postgres_fixture_setup.sh"),
               Path("tests/postgres_migration_recovery.sh"),
+              Path("tests/test_cargo_lock_contract.py"),
               Path("migrations/0001_statement_evidence.sql"),
               Path("migrations/0002_database_principal_boundary.sql"),
               Path("migrations/0003_batch_rejection_outcome.sql"),
@@ -259,6 +261,9 @@ jobs:
       - name: Validate workflow concurrency contract
         run: python3 tests/test_workflow_concurrency_contract.py
 
+      - name: Validate Cargo lock contract
+        run: python3 -m unittest tests/test_cargo_lock_contract.py -v
+
       # Run the deepest migration consumer first so no database test can
       # accidentally inherit schema, roles, or tenants from a predecessor.
       - name: Exercise PostgreSQL shared-receipt batch transaction
@@ -325,18 +330,18 @@ jobs:
         run: cargo fmt --check
 
       - name: Test all targets
-        run: cargo test --all-targets
+        run: cargo test --all-targets --locked
 
       - name: Lint production and tests
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
 
       - name: Build public documentation without warnings
         env:
           RUSTDOCFLAGS: -D warnings
-        run: cargo doc --no-deps
+        run: cargo doc --no-deps --locked
 
       - name: Install pinned line-coverage tool
         run: cargo install cargo-llvm-cov --version 0.8.6 --locked
 
       - name: Enforce complete line coverage
-        run: cargo llvm-cov --all-targets --text --show-missing-lines --fail-uncovered-lines 0
+        run: cargo llvm-cov --all-targets --locked --text --show-missing-lines --fail-uncovered-lines 0

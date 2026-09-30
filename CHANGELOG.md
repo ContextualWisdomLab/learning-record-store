@@ -34,9 +34,11 @@
 - A pre-rollback table-lock barrier and concurrent-writer fixture preventing evidence committed during rollback from being dropped after a stale emptiness check.
 - Content-bound voiding semantics that retain a validator-classified StatementRef target with the immutable Statement and derive each relation from that stored meaning instead of accepting a caller-selected target.
 - Product-first README, Apache-2.0 repository license, public documentation landing source, and clarified document-resource revision/idempotency semantics carried forward from the foundation branch without rewriting stack history.
+- A tracked service `Cargo.lock` and executable CI contract that require locked dependency resolution for tests, Clippy, rustdoc, and coverage.
 
 ### Changed
 
+- Applied the repository's pinned Rust 1.98.1 formatter to the xAPI version boundary, durable receipt wrapper, and protocol-header tests so the hosted formatting gate no longer stops later quality stages.
 - Aligned the Rust xAPI 1.0.3 compatibility surface with the durable Statement contract: `XapiVersion::V1_0_3.as_str()` now emits stable data-model label `1.0.0`, while the separately named comparison implementation remains `xapi-1.0.3-statement-comparison/v1`.
 - Corrected xAPI 1.0 compatibility-version handling: `1.0` and valid `1.0.x` request labels use the reviewed xAPI 1.0.3 comparison implementation, receipts retain the exact received label, and canonical Statements store the stable `1.0.0` data-model label.
 - Corrected xAPI 2.0 request-version handling: both IEEE-defined `2.0` and `2.0.0` inputs use the `2.0.0` comparison surface, while each receipt retains its exact received header and canonical Statements store `2.0.0`.
