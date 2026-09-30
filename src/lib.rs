@@ -44,9 +44,7 @@ impl ReceivedXapiVersion {
     /// Extracts exactly one UTF-8 HTTP header value and parses its xAPI version.
     ///
     /// Missing, repeated, non-UTF-8, malformed, and unsupported values fail closed.
-    pub fn from_header_values(
-        received_values: &[&[u8]],
-    ) -> Result<Self, XapiVersionHeaderError> {
+    pub fn from_header_values(received_values: &[&[u8]]) -> Result<Self, XapiVersionHeaderError> {
         let received_value = match received_values {
             [] => return Err(XapiVersionHeaderError::Missing),
             [received_value] => received_value,
@@ -148,10 +146,9 @@ impl Display for XapiVersionHeaderError {
                 formatter,
                 "multiple X-Experience-API-Version header values: {value_count}"
             ),
-            Self::InvalidEncoding => write!(
-                formatter,
-                "non-UTF-8 X-Experience-API-Version header value"
-            ),
+            Self::InvalidEncoding => {
+                write!(formatter, "non-UTF-8 X-Experience-API-Version header value")
+            }
             Self::Unsupported(error) => Display::fmt(error, formatter),
         }
     }

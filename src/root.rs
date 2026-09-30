@@ -81,11 +81,9 @@ impl StatementKernel {
         if !raw_request_bytes.is_empty() {
             self.ensure_receipt_capacity()?;
         }
-        let result = self.inner.begin_received_request(
-            tenant_key,
-            received_version,
-            raw_request_bytes,
-        );
+        let result =
+            self.inner
+                .begin_received_request(tenant_key, received_version, raw_request_bytes);
         self.sync_receipt_sequence();
         result
     }

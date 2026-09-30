@@ -1,8 +1,6 @@
 //! Contract tests for parsing the xAPI request-version header.
 
-use learning_record_store::{
-    ReceivedXapiVersion, StatementKernel, TenantKey, XapiVersion,
-};
+use learning_record_store::{ReceivedXapiVersion, StatementKernel, TenantKey, XapiVersion};
 
 #[test]
 fn accepted_headers_preserve_wire_value_and_select_one_surface() {
@@ -142,10 +140,7 @@ fn receipt_preserves_exact_request_version_label() {
                 format!("request:{received_label}").into_bytes(),
             )
             .expect("immutable request receipt");
-        let receipt = kernel
-            .receipts()
-            .last()
-            .expect("receipt must be retained");
+        let receipt = kernel.receipts().last().expect("receipt must be retained");
 
         assert_eq!(receipt.receipt_number(), receipt_number);
         assert_eq!(receipt.received_xapi_label(), received_label);
