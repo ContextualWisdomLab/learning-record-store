@@ -8,12 +8,13 @@
 mod kernel_impl;
 
 pub use kernel_impl::{
-    IngestionError, IngestionOutcome, IngestionReceipt, IngestionStatus, ReceivedXapiVersion,
-    StatementCandidate, StatementOccurrence, StoredStatement, TenantKey, UnsupportedXapiVersion,
-    VoidingRelation, XapiVersion, XapiVersionHeaderError, XAPI_VERSION_HEADER_NAME,
+    IngestionError, IngestionOutcome, IngestionReceipt, IngestionStatus,
+    PostgresStatementBatchParameters, ReceivedXapiVersion, StatementCandidate, StatementOccurrence,
+    StoredStatement, TenantKey, UnsupportedXapiVersion, VoidingRelation, XapiVersion,
+    XapiVersionHeaderError, XAPI_VERSION_HEADER_NAME,
 };
 
-const MAX_DURABLE_BATCH_STATEMENT_COUNT: usize = i32::MAX as usize + 1;
+const MAX_DURABLE_BATCH_STATEMENT_COUNT: usize = i32::MAX as usize;
 const MAX_DURABLE_RECEIPT_NUMBER: u64 = i64::MAX as u64;
 const MAX_DURABLE_REQUEST_STATEMENT_INDEX: u32 = i32::MAX as u32;
 
@@ -318,6 +319,10 @@ mod cardinality_tests {
 
     #[test]
     fn oversized_batch_cardinality_fails_closed() {
+        assert_eq!(
+            StatementKernel::ensure_batch_capacity(MAX_DURABLE_BATCH_STATEMENT_COUNT),
+            Ok(())
+        );
         let error = StatementKernel::ensure_batch_capacity(MAX_DURABLE_BATCH_STATEMENT_COUNT + 1)
             .expect_err("unpersistable occurrence indexes must fail closed");
 

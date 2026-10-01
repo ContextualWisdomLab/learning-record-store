@@ -44,7 +44,7 @@ Migration 0004 introduces `persist_statement_batch`, a fixed-search-path `SECURI
 
 If any item conflicts, no candidate becomes canonical. Conflicting items persist as `conflict`; all non-conflicting siblings persist as `batch_rejected`; every occurrence shares the same receipt. If no item conflicts, missing Statements are inserted and replay-equivalent Statements remain canonical; all occurrences share the same receipt. Migration 0002's single-item `persist_statement_occurrence` takes the same identity lock so the two controlled paths cannot race around one another.
 
-This function is a persistence primitive, not the HTTP adapter. The future Rust `StatementEvidenceRepository` owns type-safe invocation, transaction/error mapping, cancellation, provisioning and observability. Network/streaming adapters must finish bounded request validation before calling the batch primitive.
+This function is a persistence primitive, not the HTTP adapter. `PostgresStatementBatchParameters` provides a dependency-free typed adaptation contract for the function's parallel arrays. It retains duplicate identifiers and input order so this function can create durable rejected occurrences, while rejecting tenant/version mismatch and voiding meaning the current signature cannot represent. The future Rust `StatementEvidenceRepository` owns database invocation, transaction/error mapping, cancellation, provisioning and observability. Network/streaming adapters must finish bounded request validation before calling the batch primitive.
 
 ## User, operator, and failure scenes
 

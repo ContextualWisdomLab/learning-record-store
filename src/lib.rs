@@ -308,6 +308,143 @@ impl StatementCandidate {
     }
 }
 
+/// Validated, ordered parameters for the internal PostgreSQL batch writer.
+///
+/// This value is the anti-corruption boundary between validated Rust domain values and
+/// `persist_statement_batch`'s parallel-array signature. It deliberately contains no database
+/// client behavior. Duplicate Statement identities remain ordered in the arrays so the durable
+/// primitive can retain one rejected occurrence per submitted index.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PostgresStatementBatchParameters {
+    tenant_key: String,
+    received_xapi_version: String,
+    raw_request_bytes: Vec<u8>,
+    statement_keys: Vec<String>,
+    statement_comparison_versions: Vec<String>,
+    comparison_bytes: Vec<Vec<u8>>,
+    raw_statement_bytes: Vec<Vec<u8>>,
+}
+
+impl PostgresStatementBatchParameters {
+    fn ensure_sql_batch_capacity(statement_count: usize) -> Result<(), IngestionError> {
+        if statement_count > i32::MAX as usize {
+            return Err(IngestionError::InvalidEvidence {
+                field: "statement_batch_cardinality",
+            });
+        }
+        Ok(())
+    }
+
+    /// Adapts one completely validated POST array to the durable SQL parameter contract.
+    ///
+    /// The exact received version label and request bytes are retained. Tenant and protocol
+    /// context must match every candidate. Voiding candidates fail closed because the current
+    /// SQL batch signature cannot represent their parsed StatementRef target; silently dropping
+    /// that meaning would corrupt evidence.
+    pub fn from_received_batch(
+        tenant_key: TenantKey,
+        received_version: &ReceivedXapiVersion,
+        raw_request_bytes: Vec<u8>,
+        candidates: Vec<StatementCandidate>,
+    ) -> Result<Self, IngestionError> {
+        if raw_request_bytes.is_empty() {
+            return Err(IngestionError::InvalidEvidence {
+                field: "raw_request_bytes",
+            });
+        }
+        if candidates.is_empty() {
+            return Err(IngestionError::InvalidEvidence {
+                field: "statement_batch_cardinality",
+            });
+        }
+        Self::ensure_sql_batch_capacity(candidates.len())?;
+        if candidates.iter().any(|candidate| {
+            candidate.tenant_key != tenant_key
+                || candidate.received_xapi_version != received_version.protocol_surface()
+        }) {
+            return Err(IngestionError::InvalidEvidence {
+                field: "statement_batch_context",
+            });
+        }
+        if candidates
+            .iter()
+            .any(|candidate| candidate.voided_statement_key.is_some())
+        {
+            return Err(IngestionError::InvalidEvidence {
+                field: "durable_batch_voiding_not_supported",
+            });
+        }
+
+        let item_count = candidates.len();
+        let mut statement_keys = Vec::with_capacity(item_count);
+        let mut statement_comparison_versions = Vec::with_capacity(item_count);
+        let mut comparison_bytes = Vec::with_capacity(item_count);
+        let mut raw_statement_bytes = Vec::with_capacity(item_count);
+        for candidate in candidates {
+            statement_keys.push(candidate.statement_key);
+            statement_comparison_versions
+                .push(comparison_version(candidate.received_xapi_version).to_owned());
+            comparison_bytes.push(candidate.comparison_bytes);
+            raw_statement_bytes.push(candidate.raw_statement_bytes);
+        }
+
+        Ok(Self {
+            tenant_key: tenant_key.0,
+            received_xapi_version: received_version.received_label().to_owned(),
+            raw_request_bytes,
+            statement_keys,
+            statement_comparison_versions,
+            comparison_bytes,
+            raw_statement_bytes,
+        })
+    }
+
+    /// Returns the requested tenant parameter for the SQL writer.
+    ///
+    /// This value is not authorization evidence. The durable writer must independently derive
+    /// the authorized tenant from its administrator-controlled `session_user` mapping.
+    #[must_use]
+    pub fn tenant_key(&self) -> &str {
+        &self.tenant_key
+    }
+
+    /// Returns the exact validated request-version label for receipt provenance.
+    #[must_use]
+    pub fn received_xapi_version(&self) -> &str {
+        &self.received_xapi_version
+    }
+
+    /// Returns the exact POST request entity bytes.
+    #[must_use]
+    pub fn raw_request_bytes(&self) -> &[u8] {
+        &self.raw_request_bytes
+    }
+
+    /// Returns Statement identifiers in zero-based request order.
+    #[must_use]
+    pub fn statement_keys(&self) -> &[String] {
+        &self.statement_keys
+    }
+
+    /// Returns the reviewed comparison implementation identifier for every item.
+    #[must_use]
+    pub fn statement_comparison_versions(&self) -> &[String] {
+        &self.statement_comparison_versions
+    }
+
+    /// Returns version-aware Statement comparison bytes in request order.
+    #[must_use]
+    pub fn comparison_bytes(&self) -> &[Vec<u8>] {
+        &self.comparison_bytes
+    }
+
+    /// Returns exact received Statement bytes in request order.
+    #[must_use]
+    pub fn raw_statement_bytes(&self) -> &[Vec<u8>] {
+        &self.raw_statement_bytes
+    }
+}
+
 /// One immutable accepted Statement identity.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StoredStatement {
@@ -1121,4 +1258,23 @@ const fn comparison_version(version: XapiVersion) -> &'static str {
 
 fn sha256(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
+}
+
+#[cfg(test)]
+mod postgres_batch_parameter_tests {
+    use super::*;
+
+    #[test]
+    fn sql_batch_cardinality_must_fit_postgresql_integer_count() {
+        assert_eq!(
+            PostgresStatementBatchParameters::ensure_sql_batch_capacity(i32::MAX as usize),
+            Ok(())
+        );
+        assert_eq!(
+            PostgresStatementBatchParameters::ensure_sql_batch_capacity(i32::MAX as usize + 1),
+            Err(IngestionError::InvalidEvidence {
+                field: "statement_batch_cardinality"
+            })
+        );
+    }
 }

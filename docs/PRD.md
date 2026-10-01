@@ -1,7 +1,7 @@
 # Product requirements: immutable xAPI evidence kernel
 
 Status: Active implementation slice
-Last reconciled: 2026-09-19
+Last reconciled: 2026-10-01
 
 ## Product responsibility
 
@@ -27,7 +27,7 @@ A learning platform cannot make reliable downstream progression, audit, or compl
 
 The slice is reviewable when executable Rust tests prove first acceptance, exact-retry reuse, conflict rejection, source-byte retention for accepted/replayed/rejected request occurrences, protocol-version separation, tenant-scoped identity, and non-destructive voiding. The protocol prerequisite must require exactly one UTF-8 request-version header value, preserve the exact validated label on its request receipt, reject ambiguity without normalization, select only the reviewed canonical Statement/comparison surface, and derive the latest supported response-version value independently from the stable Statement label. The persistence schema must use descriptive multiword `snake_case` objects, preserve a single canonical `(tenant_key, statement_key)` identity, use composite tenant foreign keys, and fail closed through PostgreSQL row-level security when tenant context is absent or mismatched.
 
-The branch now contains a real PostgreSQL item-level transaction primitive and tests that race identical and conflicting submissions using an application-equivalent non-superuser role. Commercial acceptance of that evidence still depends on successful exact-head GitHub execution. The product remains non-production-ready until a Rust repository/network adapter uses the committed outcome correctly and routes POST-array requests through the shared-receipt primitive, migration rollback/reapply and backup/restore are proven, crash/retry recovery is exercised, and version-specific xAPI conformance fixtures pass. Public Rust surfaces must remain fully documented and touched production paths must reach the repository coverage target without warning suppression.
+The branch now contains real PostgreSQL item and batch transaction primitives plus a pure typed `PostgresStatementBatchParameters` boundary that losslessly maps validated non-voiding POST-array candidates to the internal shared-receipt SQL signature. It preserves exact request-version provenance and duplicate item order so SQL—not the adapter—can record every rejected occurrence. It rejects tenant/version mismatch and voiding candidates that the current SQL signature cannot represent instead of silently discarding domain meaning. Commercial acceptance of durable execution still depends on successful exact-head GitHub execution and a Rust repository/network adapter that opens the transaction, invokes the primitive, commits retained conflict evidence before protocol error mapping, and records pre-persistence failures. The product remains non-production-ready until that integration, migration rollback/reapply and backup/restore, crash/retry recovery, durable voiding adaptation, and version-specific xAPI conformance fixtures are proven. Public Rust surfaces must remain fully documented and touched production paths must reach the repository coverage target without warning suppression.
 
 ## Non-goals for this slice
 
